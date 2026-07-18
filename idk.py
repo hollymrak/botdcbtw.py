@@ -5,6 +5,8 @@ import re
 from datetime import datetime, timedelta
 from collections import defaultdict
 import time
+import asyncio
+import random
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 SERVER_ID = 1504482964661076098
@@ -45,6 +47,17 @@ CHANNELS_TO_LOCK = [
     1514945294964359329
 ]
 
+GREETINGS = [
+    "Hello! How can I help you today?",
+    "Hey there! What's up?",
+    "Hi! Nice to see you!",
+    "Greetings! How's it going?",
+    "Hey! What can I do for you?",
+    "Hello! Need any help?",
+    "Hi there! How are you doing?",
+    "Hey! I'm here for you!"
+]
+
 @bot.event
 async def on_ready():
     global banned_count
@@ -53,10 +66,13 @@ async def on_ready():
     
     channel = bot.get_channel(1518832499122507786)
     if channel:
-        async for message in channel.history(limit=None):
-            if message.author == bot.user:
-                continue
-            banned_count += 1
+        try:
+            async for message in channel.history(limit=None):
+                if message.author == bot.user:
+                    continue
+                banned_count += 1
+        except:
+            pass
 
 @bot.event
 async def on_message(message):
@@ -69,6 +85,10 @@ async def on_message(message):
         return
     
     if bot.user in message.mentions:
+        if len(message.content) > 3:
+            await message.reply(random.choice(GREETINGS))
+        else:
+            await message.reply(random.choice(GREETINGS))
         await bot.process_commands(message)
         return
     
@@ -82,28 +102,43 @@ async def on_message(message):
         await bot.process_commands(message)
         return
     
+    await check_spam(message)
+    
+    if "zalupa" in message.content.lower():
+        await message.reply("**hi!**")
+    
+    await bot.process_commands(message)
+
+async def check_spam(message):
     user_id = message.author.id
     current_time = time.time()
     
-    user_messages[user_id] = [t for t in user_messages[user_id] if current_time - t < 4]
+    user_messages[user_id] = [t for t in user_messages[user_id] if current_time - t < 2]
     user_messages[user_id].append(current_time)
     
     if len(user_messages[user_id]) >= 5:
         user_warnings[user_id] += 1
         warn_count = user_warnings[user_id]
         
+        if user_id not in warnings:
+            warnings[user_id] = []
+        warnings[user_id].append("Spamming (5 messages in 2 seconds)")
+        
         try:
-            if user_id not in warnings:
-                warnings[user_id] = []
-            warnings[user_id].append("Spamming (5 messages in 4 seconds)")
-            
             embed = discord.Embed(
-                description=f"You have received a warning in **HollyScriptX**\nWarned By: Auto-Mod\nReason: **Spamming (5 messages in 4 seconds)**\nTotal Warnings: {warn_count}",
+                description=f"You have received a warning in **HollyScriptX**\nWarned By: Auto-Mod\nReason: **Spamming (5 messages in 2 seconds)**\nTotal Warnings: {warn_count}",
                 color=discord.Color.from_rgb(255, 215, 0)
             )
             await message.author.send(embed=embed)
         except:
             pass
+        
+        if message.channel:
+            embed = discord.Embed(
+                description=f"{message.author.mention} has been warned for spamming! (5 messages in 2 seconds)",
+                color=discord.Color.from_rgb(255, 215, 0)
+            )
+            await message.channel.send(embed=embed)
         
         user_messages[user_id] = []
         
@@ -130,14 +165,6 @@ async def on_message(message):
                 user_warnings[user_id] = 0
             except Exception as e:
                 print(f'Auto ban 3 warns error: {e}')
-        
-        await bot.process_commands(message)
-        return
-    
-    if "zalupa" in message.content.lower():
-        await message.reply("**hi!**")
-    
-    await bot.process_commands(message)
 
 async def auto_ban(message):
     global banned_count
@@ -611,6 +638,17 @@ async def invite(ctx):
     await ctx.send("Join to our discord!", view=view)
 
 @bot.command()
+async def saysomething(ctx):
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    channel = bot.get_channel(1513695339167617084)
+    if channel:
+        await channel.send("I'm here again ✌️")
+
+@bot.command()
 async def typeinchannel(ctx):
     global banned_count
     channel = bot.get_channel(1518832499122507786)
@@ -644,6 +682,7 @@ async def help_commands(ctx):
     embed.add_field(name=",giverole (role_name)", value="Give a role to replied user", inline=False)
     embed.add_field(name=",delrole (role_name)", value="Remove a role from replied user", inline=False)
     embed.add_field(name=",invite", value="Send invite to Discord server", inline=False)
+    embed.add_field(name=",saysomething", value="Bot says I'm here again in specific channel", inline=False)
     embed.add_field(name=",help_commands", value="Show this help message", inline=False)
     
     available_roles = ', '.join(role_map.keys())
