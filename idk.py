@@ -1,3 +1,4 @@
+import os
 import discord
 from discord.ext import commands
 import asyncio
@@ -7,7 +8,7 @@ import re
 from collections import defaultdict
 import time
 
-TOKEN = "MTUxOTgwOTU2MDM3NzAzNjkyMQ.GOd4mX.VNTTHG3MhBuF-PDZFYy4j2lHiY6KQ9L7W-ZumU"
+TOKEN = os.getenv("DISCORD_TOKEN")
 SERVER_ID = 1504482964661076098
 VOICE_CHANNEL_ID = 1513692263010799716
 OLD_ROLE_ID = 1508785745547235388
@@ -807,4 +808,9 @@ async def help_commands(ctx):
     
     await ctx.send(embed=embed)
 
-bot.run(TOKEN)
+if __name__ == "__main__":
+    if TOKEN is None:
+        print("ERROR: DISCORD_TOKEN environment variable is not set!")
+        print("Please set it in Railway: Variables -> Add Variable -> DISCORD_TOKEN")
+    else:
+        bot.run(TOKEN)
