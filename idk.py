@@ -18,8 +18,8 @@ hardbanned_users = set()
 warnings = defaultdict(list)
 user_messages = defaultdict(list)
 user_warnings = defaultdict(int)
-user_word_spam = defaultdict(list)
 verify_running = False
+banned_count = 0
 
 role_map = {
     'retard': 1513440439766876180,
@@ -47,8 +47,16 @@ CHANNELS_TO_LOCK = [
 
 @bot.event
 async def on_ready():
+    global banned_count
     print(f'Bot {bot.user} is online')
     await bot.change_presence(status=discord.Status.dnd, activity=discord.Game(name="HollyScriptX"))
+    
+    channel = bot.get_channel(1518832499122507786)
+    if channel:
+        async for message in channel.history(limit=None):
+            if message.author == bot.user:
+                continue
+            banned_count += 1
 
 @bot.event
 async def on_message(message):
@@ -76,89 +84,55 @@ async def on_message(message):
     
     user_id = message.author.id
     current_time = time.time()
-    content_lower = message.content.lower()
     
-    user_messages[user_id] = [t for t in user_messages[user_id] if current_time - t < 3]
+    user_messages[user_id] = [t for t in user_messages[user_id] if current_time - t < 4]
     user_messages[user_id].append(current_time)
     
-    user_word_spam[user_id] = [(word, t) for word, t in user_word_spam[user_id] if current_time - t < 3]
-    
-    words = re.findall(r'\b\w+\b', content_lower)
-    for word in words:
-        if len(word) > 2:
-            user_word_spam[user_id].append((word, current_time))
-    
-    word_counts = defaultdict(int)
-    for word, _ in user_word_spam[user_id]:
-        word_counts[word] += 1
-    
-    is_word_spam = any(count >= 5 for count in word_counts.values())
-    
-    last_messages = []
-    async for msg in message.channel.history(limit=10):
-        if msg.author.id == user_id:
-            last_messages.append(msg.content.lower())
-    
-    is_repeat_spam = False
-    if len(last_messages) >= 3:
-        if all(msg == last_messages[0] for msg in last_messages[:3]):
-            is_repeat_spam = True
-    
-    has_mentions = len(message.mentions) > 3 or len(message.role_mentions) > 2
-    
-    if is_repeat_spam or has_mentions or is_word_spam:
+    if len(user_messages[user_id]) >= 5:
         user_warnings[user_id] += 1
-        
-        mute_duration = 60
-        if user_warnings[user_id] >= 5:
-            mute_duration = 3600
-        elif user_warnings[user_id] >= 3:
-            mute_duration = 600
-        elif user_warnings[user_id] >= 2:
-            mute_duration = 300
+        warn_count = user_warnings[user_id]
         
         try:
-            timeout = discord.utils.utcnow() + timedelta(seconds=mute_duration)
-            await message.author.timeout(timeout, reason=f"Spamming (Warning #{user_warnings[user_id]})")
+            if user_id not in warnings:
+                warnings[user_id] = []
+            warnings[user_id].append("Spamming (5 messages in 4 seconds)")
             
-            spam_channel = bot.get_channel(1513695339167617084)
-            if spam_channel:
-                embed = discord.Embed(
-                    description=f"{message.author.mention} Has been timed-out for spamming.",
-                    color=discord.Color.from_rgb(220, 20, 20)
-                )
-                embed.add_field(name="Duration", value=f"{mute_duration} seconds", inline=True)
-                embed.add_field(name="Warning Count", value=f"{user_warnings[user_id]}", inline=True)
-                
-                if is_word_spam:
-                    spam_words = [word for word, count in word_counts.items() if count >= 5]
-                    embed.add_field(name="Reason", value=f"Spamming words: {', '.join(spam_words[:3])}", inline=False)
-                elif is_repeat_spam:
-                    embed.add_field(name="Reason", value="Repeating same message", inline=False)
-                elif has_mentions:
-                    embed.add_field(name="Reason", value="Mass mentions", inline=False)
-                
-                await spam_channel.send(embed=embed)
-            
-            user_messages[user_id] = []
-            user_word_spam[user_id] = []
-            
-            if user_warnings[user_id] >= 5:
-                try:
-                    await message.author.ban(reason="Repeated spamming (5+ warnings)")
+            embed = discord.Embed(
+                description=f"You have received a warning in **HollyScriptX**\nWarned By: Auto-Mod\nReason: **Spamming (5 messages in 4 seconds)**\nTotal Warnings: {warn_count}",
+                color=discord.Color.from_rgb(255, 215, 0)
+            )
+            await message.author.send(embed=embed)
+        except:
+            pass
+        
+        user_messages[user_id] = []
+        
+        if warn_count >= 3:
+            try:
+                log_channel = bot.get_channel(1518832499122507786)
+                if log_channel:
                     embed = discord.Embed(
-                        description=f"{message.author.mention} has been permanently **banned** for repeated spamming.",
+                        description=f"{message.author.mention} have been permanently banned because received 3 warns",
                         color=discord.Color.from_rgb(220, 20, 20)
                     )
-                    await spam_channel.send(embed=embed)
-                    user_warnings[user_id] = 0
+                    await log_channel.send(embed=embed)
+                
+                try:
+                    embed = discord.Embed(
+                        description=f"You have been permanently banned from **HollyScriptX**\nReason: lil stupid nigga got 3 warns lmaoo",
+                        color=discord.Color.from_rgb(220, 20, 20)
+                    )
+                    await message.author.send(embed=embed)
                 except:
                     pass
-            
-            await bot.process_commands(message)
-            return
-        except Exception as e:
-            print(f'Spam timeout error: {e}')
+                
+                await message.author.ban(reason="lil stupid nigga got 3 warns lmaoo")
+                user_warnings[user_id] = 0
+            except Exception as e:
+                print(f'Auto ban 3 warns error: {e}')
+        
+        await bot.process_commands(message)
+        return
     
     if "zalupa" in message.content.lower():
         await message.reply("**hi!**")
@@ -166,10 +140,12 @@ async def on_message(message):
     await bot.process_commands(message)
 
 async def auto_ban(message):
+    global banned_count
     try:
         member = message.author
-        log_channel = bot.get_channel(1518832499122507786)
+        banned_count += 1
         
+        log_channel = bot.get_channel(1518832499122507786)
         if log_channel:
             embed = discord.Embed(
                 description=f"{member.mention} has been permanently **banned** from **HollyScriptX**\nReason: **Scammed Accounts detection 1.0**\nTyped Message:\n{message.content}",
@@ -633,6 +609,18 @@ async def invite(ctx):
     view = discord.ui.View()
     view.add_item(discord.ui.Button(label="Join Discord", url=INVITE_LINK))
     await ctx.send("Join to our discord!", view=view)
+
+@bot.command()
+async def typeinchannel(ctx):
+    global banned_count
+    channel = bot.get_channel(1518832499122507786)
+    if channel:
+        embed = discord.Embed(
+            description="⚠️ DON'T SEND ANY MESSAGES IN THIS CHANNEL ⚠️\n\n⚠️ This channel only used to catch spam bots and hacked accounts, don't send anything in this channel or you will be immediately banned from HollyScriptX ⚠️\n\nBanned users: " + str(banned_count),
+            color=discord.Color.from_rgb(255, 255, 255)
+        )
+        await channel.send(embed=embed)
+        await ctx.send("Message sent to the channel!", delete_after=3)
 
 @bot.command()
 async def help_commands(ctx):
