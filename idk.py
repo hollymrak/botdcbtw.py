@@ -16,7 +16,8 @@ ADMIN_ROLE_ID = 1516094850628587630
 INVITE_LINK = "https://discord.gg/njxxTuMH"
 VERIFY_ROLE_ID = 1508785745547235388
 VERIFIED_ROLE_ID = 1504503685328146585
-VERIFY_CHANNEL_ID = 1513733733184831558
+VERIFY_MESSAGE_CHANNEL_ID = 1513696689536372736
+VERIFY_LOG_CHANNEL_ID = 1513733733184831558
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix=',', intents=intents)
@@ -54,7 +55,7 @@ CHANNELS_TO_LOCK = [
     1514945294964359329
 ]
 
-# AI API ключ (бесплатный)
+# AI API ключ
 AI_API_KEY = "sk-ijklmnopqrstuvwxijklmnopqrstuvwxijklmnop"
 AI_API_URL = "https://api.openai.com/v1/chat/completions"
 
@@ -110,7 +111,6 @@ async def on_message(message):
         return
     
     if bot.user in message.mentions:
-        # AI ответ
         ai_response = await get_ai_response(message.content)
         if ai_response:
             await message.reply(ai_response)
@@ -174,13 +174,13 @@ async def on_raw_reaction_add(payload):
         await member.remove_roles(old_role)
         await member.add_roles(new_role)
         
-        channel = bot.get_channel(VERIFY_CHANNEL_ID)
-        if channel:
+        log_channel = bot.get_channel(VERIFY_LOG_CHANNEL_ID)
+        if log_channel:
             embed = discord.Embed(
                 description=f"HollyScriptX\n{member.mention} Just successfully verified!",
                 color=discord.Color.from_rgb(50, 255, 50)
             )
-            await channel.send(embed=embed)
+            await log_channel.send(embed=embed)
     except Exception as e:
         print(f'Verify error: {e}')
 
@@ -754,7 +754,7 @@ async def sendverifyshit(ctx):
     except:
         pass
     
-    channel = bot.get_channel(VERIFY_CHANNEL_ID)
+    channel = bot.get_channel(VERIFY_MESSAGE_CHANNEL_ID)
     if not channel:
         await ctx.send("Verify channel not found!", delete_after=3)
         return
