@@ -14,7 +14,6 @@ INVITE_LINK = "https://discord.gg/njxxTuMH"
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix=',', intents=intents)
 
-whitelist = set()
 hardbanned_users = set()
 warnings = defaultdict(list)
 user_messages = defaultdict(list)
@@ -50,12 +49,6 @@ CHANNELS_TO_LOCK = [
 async def on_ready():
     print(f'Bot {bot.user} is online')
     await bot.change_presence(status=discord.Status.dnd, activity=discord.Game(name="HollyScriptX"))
-    
-    guild = bot.get_guild(SERVER_ID)
-    if guild:
-        channel = guild.get_channel(1504482964661076098)
-        if channel:
-            await channel.send("I'm here again ✌️")
 
 @bot.event
 async def on_message(message):
@@ -82,11 +75,6 @@ async def on_message(message):
         return
     
     user_id = message.author.id
-    
-    if user_id in whitelist:
-        await bot.process_commands(message)
-        return
-    
     current_time = time.time()
     content_lower = message.content.lower()
     
@@ -396,43 +384,6 @@ async def unhardban(ctx, *, user_input):
 
 @bot.command()
 @commands.has_role(ADMIN_ROLE_ID)
-async def whitelist(ctx, member: discord.Member = None):
-    if member is None and ctx.message.reference:
-        referenced = await ctx.channel.fetch_message(ctx.message.reference.message_id)
-        member = referenced.author
-    if member is None:
-        await ctx.send("Usage: ,whitelist (@user) or reply to a message with ,whitelist")
-        return
-    
-    whitelist.add(member.id)
-    embed = discord.Embed(
-        description=f"> {member.mention} now have automod bypass!",
-        color=discord.Color.from_rgb(50, 200, 50)
-    )
-    await ctx.send(embed=embed)
-
-@bot.command()
-@commands.has_role(ADMIN_ROLE_ID)
-async def unwhitelist(ctx, member: discord.Member = None):
-    if member is None and ctx.message.reference:
-        referenced = await ctx.channel.fetch_message(ctx.message.reference.message_id)
-        member = referenced.author
-    if member is None:
-        await ctx.send("Usage: ,unwhitelist (@user) or reply to a message with ,unwhitelist")
-        return
-    
-    if member.id in whitelist:
-        whitelist.remove(member.id)
-        embed = discord.Embed(
-            description=f"> {member.mention} no longer has automod bypass!",
-            color=discord.Color.from_rgb(200, 50, 50)
-        )
-        await ctx.send(embed=embed)
-    else:
-        await ctx.send(f"> {member.mention} is not whitelisted")
-
-@bot.command()
-@commands.has_role(ADMIN_ROLE_ID)
 async def mute(ctx, member: discord.Member = None, *, reason = "No Reason Provided"):
     if member is None and ctx.message.reference:
         referenced = await ctx.channel.fetch_message(ctx.message.reference.message_id)
@@ -698,8 +649,6 @@ async def help_commands(ctx):
     embed.add_field(name=",warn (@user) (reason)", value="Give a warning to a user", inline=False)
     embed.add_field(name=",hardban (@user) (reason)", value="Hard ban a user (remove all channel access)", inline=False)
     embed.add_field(name=",unhardban (user)", value="Remove hard ban from a user", inline=False)
-    embed.add_field(name=",whitelist (@user)", value="Give automod bypass to a user", inline=False)
-    embed.add_field(name=",unwhitelist (@user)", value="Remove automod bypass from a user", inline=False)
     embed.add_field(name=",lockchats", value="Lock all specified channels", inline=False)
     embed.add_field(name=",unlockchats", value="Unlock all specified channels", inline=False)
     embed.add_field(name=",verifyall", value="Verifies all people with unverified role", inline=False)
