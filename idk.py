@@ -10,7 +10,6 @@ import time
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 SERVER_ID = 1504482964661076098
-VOICE_CHANNEL_ID = 1513692263010799716
 OLD_ROLE_ID = 1508785745547235388
 NEW_ROLE_ID = 1504503685328146585
 ADMIN_ROLE_ID = 1516094850628587630
@@ -111,7 +110,6 @@ async def on_ready():
             print(f'Startup message error: {e}')
     
     bot.loop.create_task(daily_startup_message())
-    bot.loop.create_task(voice_activity_loop())
 
 async def daily_startup_message():
     global last_startup_message
@@ -130,41 +128,6 @@ async def daily_startup_message():
         except Exception as e:
             print(f'Daily startup message error: {e}')
             await asyncio.sleep(3600)
-
-async def voice_activity_loop():
-    await bot.wait_until_ready()
-    statuses = ["Join to our discord", "HollyScriptX", "Maked by @t3e6"]
-    index = 0
-    
-    while True:
-        try:
-            guild = bot.get_guild(SERVER_ID)
-            if guild:
-                channel = guild.get_channel(VOICE_CHANNEL_ID)
-                if channel:
-                    connected = False
-                    for vc in bot.voice_clients:
-                        if vc.guild.id == SERVER_ID and vc.is_connected():
-                            connected = True
-                            break
-                    
-                    if not connected:
-                        try:
-                            await channel.connect()
-                            print('CONNECTED TO VOICE')
-                        except Exception as e:
-                            print(f'CONNECT ERROR: {e}')
-                
-                if bot.voice_clients:
-                    status = statuses[index % len(statuses)]
-                    await bot.change_presence(activity=discord.Game(name=status))
-                    index += 1
-            
-            await asyncio.sleep(10)
-            
-        except Exception as e:
-            print(f'Voice loop error: {e}')
-            await asyncio.sleep(5)
 
 @bot.event
 async def on_message(message):
@@ -669,113 +632,6 @@ async def stopverify(ctx):
     await ctx.send("Verification process stopped")
 
 @bot.command()
-@has_admin_role()
-async def join(ctx):
-    voice_channel = ctx.guild.get_channel(VOICE_CHANNEL_ID)
-    if not voice_channel:
-        await ctx.send(f"Voice channel with ID {VOICE_CHANNEL_ID} not found")
-        return
-    if ctx.voice_client:
-        await ctx.voice_client.disconnect()
-    await voice_channel.connect()
-    await ctx.send(f"Connected to {voice_channel.name}")
-
-@bot.command()
-@has_admin_role()
-async def leave(ctx):
-    if ctx.voice_client:
-        await ctx.voice_client.disconnect()
-        await ctx.send("Left voice channel")
-    else:
-        await ctx.send("Not in a voice channel")
-
-@bot.command()
-@has_admin_role()
-async def giverole(ctx, role_name: str):
-    if not ctx.message.reference:
-        await ctx.send("You must reply to a message to give a role")
-        return
-    
-    try:
-        referenced_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
-        member = referenced_msg.author
-    except:
-        await ctx.send("Could not find the user")
-        return
-    
-    role_name_lower = role_name.lower()
-    if role_name_lower not in role_map:
-        available_roles = ', '.join(role_map.keys())
-        await ctx.send(f"Role '{role_name}' not found. Available roles: {available_roles}")
-        return
-    
-    role_id = role_map[role_name_lower]
-    role = ctx.guild.get_role(role_id)
-    if not role:
-        await ctx.send(f"Role not found on this server")
-        return
-    
-    try:
-        await member.add_roles(role)
-        await ctx.send(f"Added role '{role.name}' to {member.mention}")
-    except discord.Forbidden:
-        await ctx.send("I do not have permission to give this role")
-    except discord.HTTPException as e:
-        await ctx.send(f"Error giving role: {e}")
-
-@giverole.error
-async def giverole_error(ctx, error):
-    if isinstance(error, commands.CheckFailure):
-        await ctx.send("You do not have permission to use this command")
-    elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("Usage: Reply to a message with ,giverole (role_name)")
-
-@bot.command()
-@has_admin_role()
-async def delrole(ctx, role_name: str):
-    if not ctx.message.reference:
-        await ctx.send("You must reply to a message to remove a role")
-        return
-    
-    try:
-        referenced_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
-        member = referenced_msg.author
-    except:
-        await ctx.send("Could not find the user")
-        return
-    
-    role_name_lower = role_name.lower()
-    if role_name_lower not in role_map:
-        available_roles = ', '.join(role_map.keys())
-        await ctx.send(f"Role '{role_name}' not found. Available roles: {available_roles}")
-        return
-    
-    role_id = role_map[role_name_lower]
-    role = ctx.guild.get_role(role_id)
-    if not role:
-        await ctx.send(f"Role not found on this server")
-        return
-    
-    if role not in member.roles:
-        await ctx.send(f"{member.mention} does not have the '{role.name}' role")
-        return
-    
-    try:
-        await member.remove_roles(role)
-        await ctx.send(f"Removed role '{role.name}' from {member.mention}")
-    except discord.Forbidden:
-        await ctx.send("I do not have permission to remove this role")
-    except discord.HTTPException as e:
-        await ctx.send(f"Error removing role: {e}")
-
-@delrole.error
-async def delrole_error(ctx, error):
-    if isinstance(error, commands.CheckFailure):
-        await ctx.send("You do not have permission to use this command")
-    elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("Usage: Reply to a message with ,delrole (role_name)")
-
-@bot.command()
 async def invite(ctx):
     view = DiscordInviteView()
     await ctx.send("Join to our discord!", view=view)
@@ -795,8 +651,6 @@ async def help_commands(ctx):
     embed.add_field(name=",unlockchats", value="Unlock all specified channels", inline=False)
     embed.add_field(name=",verifyall", value="Verifies all people with unverified role", inline=False)
     embed.add_field(name=",stopverify", value="Stop verification process", inline=False)
-    embed.add_field(name=",join", value="Connect bot to ink game voice channel", inline=False)
-    embed.add_field(name=",leave", value="Disconnect bot from voice channel", inline=False)
     embed.add_field(name=",giverole (role_name)", value="Give a role to replied user", inline=False)
     embed.add_field(name=",delrole (role_name)", value="Remove a role from replied user", inline=False)
     embed.add_field(name=",invite", value="Send invite to Discord server", inline=False)
