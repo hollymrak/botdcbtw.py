@@ -35,7 +35,6 @@ warnings = {}
 user_messages = defaultdict(list)
 user_warnings = defaultdict(int)
 user_word_spam = defaultdict(list)
-spam_cooldown = defaultdict(float)
 last_startup_message = None
 
 role_map = {
@@ -270,18 +269,6 @@ async def on_message(message):
         xeno_patterns = [
             r'x[e3]n[o0]',
             r'x[e3]no',
-            r'x[e3]n[o0]',
-            r'x[e3]n0',
-            r'x[e3]н[o0]',
-            r'x[e3]нo',
-            r'x[e3]н0',
-            r'x[e3]nо',
-            r'x[e3]n[o0]',
-            r'x[e3]no',
-            r'x[e3]n0',
-            r'x[e3]н[o0]',
-            r'x[e3]нo',
-            r'x[e3]н0',
         ]
         
         is_xeno = False
@@ -298,12 +285,6 @@ async def on_message(message):
         nigger_patterns = [
             r'n[i1]gg[e3]r',
             r'n[i1]gg[a4]',
-            r'n[i1]g[a4]',
-            r'n[e3]g[r0]',
-            r'n[i1]gg[e3]r',
-            r'n[i1]gg[a4]',
-            r'n[i1]g[a4]',
-            r'n[e3]g[r0]',
         ]
         
         is_nigger = False
