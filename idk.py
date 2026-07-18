@@ -554,4 +554,156 @@ async def verifyall(ctx):
 async def stopverify(ctx):
     global verify_running
     if not verify_running:
-        await ctx.send("Verification process is not 
+        await ctx.send("Verification process is not running")
+        return
+    verify_running = False
+    await ctx.send("Verification process stopped")
+
+@bot.command()
+@commands.has_role(ADMIN_ROLE_ID)
+async def giverole(ctx, role_name: str):
+    if not ctx.message.reference:
+        await ctx.send("You must reply to a message to give a role")
+        return
+    
+    try:
+        referenced_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
+        member = referenced_msg.author
+    except:
+        await ctx.send("Could not find the user")
+        return
+    
+    role_name_lower = role_name.lower()
+    if role_name_lower not in role_map:
+        available_roles = ', '.join(role_map.keys())
+        await ctx.send(f"Role '{role_name}' not found. Available roles: {available_roles}")
+        return
+    
+    role_id = role_map[role_name_lower]
+    role = ctx.guild.get_role(role_id)
+    if not role:
+        await ctx.send(f"Role not found on this server")
+        return
+    
+    try:
+        await member.add_roles(role)
+        await ctx.send(f"Added role '{role.name}' to {member.mention}")
+    except discord.Forbidden:
+        await ctx.send("I do not have permission to give this role")
+    except discord.HTTPException as e:
+        await ctx.send(f"Error giving role: {e}")
+
+@bot.command()
+@commands.has_role(ADMIN_ROLE_ID)
+async def delrole(ctx, role_name: str):
+    if not ctx.message.reference:
+        await ctx.send("You must reply to a message to remove a role")
+        return
+    
+    try:
+        referenced_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
+        member = referenced_msg.author
+    except:
+        await ctx.send("Could not find the user")
+        return
+    
+    role_name_lower = role_name.lower()
+    if role_name_lower not in role_map:
+        available_roles = ', '.join(role_map.keys())
+        await ctx.send(f"Role '{role_name}' not found. Available roles: {available_roles}")
+        return
+    
+    role_id = role_map[role_name_lower]
+    role = ctx.guild.get_role(role_id)
+    if not role:
+        await ctx.send(f"Role not found on this server")
+        return
+    
+    if role not in member.roles:
+        await ctx.send(f"{member.mention} does not have the '{role.name}' role")
+        return
+    
+    try:
+        await member.remove_roles(role)
+        await ctx.send(f"Removed role '{role.name}' from {member.mention}")
+    except discord.Forbidden:
+        await ctx.send("I do not have permission to remove this role")
+    except discord.HTTPException as e:
+        await ctx.send(f"Error removing role: {e}")
+
+@bot.command()
+async def invite(ctx):
+    view = discord.ui.View()
+    view.add_item(discord.ui.Button(label="Join Discord", url=INVITE_LINK))
+    await ctx.send("Join to our discord!", view=view)
+
+@bot.command()
+async def saysomething(ctx):
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    channel = bot.get_channel(1513695339167617084)
+    if channel:
+        await channel.send("I'm here again ✌️")
+
+@bot.command()
+async def say(ctx, *, message: str):
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    channel = bot.get_channel(1513695339167617084)
+    if channel:
+        await channel.send(message)
+
+@bot.command()
+async def typeinchannel(ctx):
+    global banned_count
+    channel = bot.get_channel(1518832499122507786)
+    if channel:
+        embed = discord.Embed(
+            description="⚠️ DON'T SEND ANY MESSAGES IN THIS CHANNEL ⚠️\n\n⚠️ This channel only used to catch spam bots and hacked accounts, don't send anything in this channel or you will be immediately banned from HollyScriptX ⚠️\n\nBanned users: " + str(banned_count),
+            color=discord.Color.from_rgb(255, 255, 255)
+        )
+        await channel.send(embed=embed)
+        await ctx.send("Message sent to the channel!", delete_after=3)
+
+@bot.command()
+async def help_commands(ctx):
+    embed = discord.Embed(
+        title="Bot Commands",
+        description="Commands require the admin role to use",
+        color=discord.Color.blue()
+    )
+    embed.add_field(name=",clear (amount)", value="Delete messages in the channel (max 100)", inline=False)
+    embed.add_field(name=",ban (@user) (reason)", value="Ban a user permanently", inline=False)
+    embed.add_field(name=",unban (user)", value="Unban a user", inline=False)
+    embed.add_field(name=",mute (@user) (reason)", value="Mute a user for 24 hours", inline=False)
+    embed.add_field(name=",unmute (@user)", value="Unmute a user", inline=False)
+    embed.add_field(name=",warn (@user) (reason)", value="Give a warning to a user", inline=False)
+    embed.add_field(name=",hardban (@user) (reason)", value="Hard ban a user (remove all channel access)", inline=False)
+    embed.add_field(name=",unhardban (user)", value="Remove hard ban from a user", inline=False)
+    embed.add_field(name=",lockchats", value="Lock all specified channels", inline=False)
+    embed.add_field(name=",unlockchats", value="Unlock all specified channels", inline=False)
+    embed.add_field(name=",verifyall", value="Verifies all people with unverified role", inline=False)
+    embed.add_field(name=",stopverify", value="Stop verification process", inline=False)
+    embed.add_field(name=",giverole (role_name)", value="Give a role to replied user", inline=False)
+    embed.add_field(name=",delrole (role_name)", value="Remove a role from replied user", inline=False)
+    embed.add_field(name=",invite", value="Send invite to Discord server", inline=False)
+    embed.add_field(name=",saysomething", value="Bot says I'm here again in specific channel", inline=False)
+    embed.add_field(name=",help_commands", value="Show this help message", inline=False)
+    
+    available_roles = ', '.join(role_map.keys())
+    embed.add_field(name="Available Roles", value=available_roles, inline=False)
+    embed.set_footer(text=f"Admin Role ID: {ADMIN_ROLE_ID}")
+    
+    await ctx.send(embed=embed)
+
+if __name__ == "__main__":
+    if TOKEN is None:
+        print("ERROR: DISCORD_TOKEN environment variable is not set!")
+    else:
+        bot.run(TOKEN)
