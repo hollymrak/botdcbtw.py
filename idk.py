@@ -126,18 +126,22 @@ async def daily_startup_message():
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
+        await bot.process_commands(message)
         return
     
     if message.guild and message.guild.id == SERVER_ID:
         if bot.user in message.mentions:
+            await bot.process_commands(message)
             return
         
         if message.channel.id == BAN_CHANNEL_ID:
             await auto_ban(message)
+            await bot.process_commands(message)
             return
         
         if "key" in message.content.lower():
             await message.reply("HSX-7562-3194-0835-4981-2470-1488-1029-6967")
+            await bot.process_commands(message)
             return
         
         user_id = message.author.id
