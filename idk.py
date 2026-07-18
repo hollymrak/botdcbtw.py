@@ -7,11 +7,16 @@ from collections import defaultdict
 import time
 import asyncio
 import random
+import aiohttp
+import json
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 SERVER_ID = 1504482964661076098
 ADMIN_ROLE_ID = 1516094850628587630
 INVITE_LINK = "https://discord.gg/njxxTuMH"
+VERIFY_ROLE_ID = 1508785745547235388
+VERIFIED_ROLE_ID = 1504503685328146585
+VERIFY_CHANNEL_ID = 1513733733184831558
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix=',', intents=intents)
@@ -22,6 +27,8 @@ user_messages = defaultdict(list)
 user_warnings = defaultdict(int)
 verify_running = False
 banned_count = 0
+verify_message_id = None
+verify_channel_id = None
 
 role_map = {
     'retard': 1513440439766876180,
@@ -47,16 +54,34 @@ CHANNELS_TO_LOCK = [
     1514945294964359329
 ]
 
-GREETINGS = [
-    "Hello! How can I help you today?",
-    "Hey there! What's up?",
-    "Hi! Nice to see you!",
-    "Greetings! How's it going?",
-    "Hey! What can I do for you?",
-    "Hello! Need any help?",
-    "Hi there! How are you doing?",
-    "Hey! I'm here for you!"
-]
+# AI API ключ (бесплатный)
+AI_API_KEY = "sk-ijklmnopqrstuvwxijklmnopqrstuvwxijklmnop"
+AI_API_URL = "https://api.openai.com/v1/chat/completions"
+
+async def get_ai_response(question):
+    try:
+        headers = {
+            "Authorization": f"Bearer {AI_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {"role": "system", "content": "You are a helpful Discord bot assistant. Answer briefly and clearly."},
+                {"role": "user", "content": question}
+            ],
+            "max_tokens": 200,
+            "temperature": 0.7
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(AI_API_URL, headers=headers, json=data, timeout=10) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    return result['choices'][0]['message']['content']
+                else:
+                    return None
+    except:
+        return None
 
 @bot.event
 async def on_ready():
@@ -85,10 +110,21 @@ async def on_message(message):
         return
     
     if bot.user in message.mentions:
-        if len(message.content) > 3:
-            await message.reply(random.choice(GREETINGS))
+        # AI ответ
+        ai_response = await get_ai_response(message.content)
+        if ai_response:
+            await message.reply(ai_response)
         else:
-            await message.reply(random.choice(GREETINGS))
+            await message.reply(random.choice([
+                "Hello! How can I help you today?",
+                "Hey there! What's up?",
+                "Hi! Nice to see you!",
+                "Greetings! How's it going?",
+                "Hey! What can I do for you?",
+                "Hello! Need any help?",
+                "Hi there! How are you doing?",
+                "Hey! I'm here for you!"
+            ]))
         await bot.process_commands(message)
         return
     
@@ -108,6 +144,45 @@ async def on_message(message):
         await message.reply("**hi!**")
     
     await bot.process_commands(message)
+
+@bot.event
+async def on_raw_reaction_add(payload):
+    if payload.user_id == bot.user.id:
+        return
+    
+    if payload.message_id != verify_message_id:
+        return
+    
+    if str(payload.emoji) != "✅":
+        return
+    
+    guild = bot.get_guild(SERVER_ID)
+    if not guild:
+        return
+    
+    member = guild.get_member(payload.user_id)
+    if not member:
+        return
+    
+    old_role = guild.get_role(VERIFY_ROLE_ID)
+    new_role = guild.get_role(VERIFIED_ROLE_ID)
+    
+    if not old_role or not new_role:
+        return
+    
+    try:
+        await member.remove_roles(old_role)
+        await member.add_roles(new_role)
+        
+        channel = bot.get_channel(VERIFY_CHANNEL_ID)
+        if channel:
+            embed = discord.Embed(
+                description=f"HollyScriptX\n{member.mention} Just successfully verified!",
+                color=discord.Color.from_rgb(50, 255, 50)
+            )
+            await channel.send(embed=embed)
+    except Exception as e:
+        print(f'Verify error: {e}')
 
 async def check_spam(message):
     user_id = message.author.id
@@ -510,14 +585,14 @@ async def verifyall(ctx):
         return
     
     guild = ctx.guild
-    old_role = guild.get_role(1508785745547235388)
-    new_role = guild.get_role(1504503685328146585)
+    old_role = guild.get_role(VERIFY_ROLE_ID)
+    new_role = guild.get_role(VERIFIED_ROLE_ID)
     
     if not old_role:
-        await ctx.send(f"Role with ID 1508785745547235388 not found")
+        await ctx.send(f"Role with ID {VERIFY_ROLE_ID} not found")
         return
     if not new_role:
-        await ctx.send(f"Role with ID 1504503685328146585 not found")
+        await ctx.send(f"Role with ID {VERIFIED_ROLE_ID} not found")
         return
     
     members = [member for member in guild.members if old_role in member.roles]
@@ -576,7 +651,7 @@ async def giverole(ctx, role_name: str):
     role_name_lower = role_name.lower()
     if role_name_lower not in role_map:
         available_roles = ', '.join(role_map.keys())
-        await ctx.send(f"Role '{role_name}' not found. Available roles: {available_roles}")
+        await ctx.send(f"Role {role_name} not found. Available roles: {available_roles}")
         return
     
     role_id = role_map[role_name_lower]
@@ -587,7 +662,7 @@ async def giverole(ctx, role_name: str):
     
     try:
         await member.add_roles(role)
-        await ctx.send(f"Added role '{role.name}' to {member.mention}")
+        await ctx.send(f"Added role {role.name} to {member.mention}")
     except discord.Forbidden:
         await ctx.send("I do not have permission to give this role")
     except discord.HTTPException as e:
@@ -610,7 +685,7 @@ async def delrole(ctx, role_name: str):
     role_name_lower = role_name.lower()
     if role_name_lower not in role_map:
         available_roles = ', '.join(role_map.keys())
-        await ctx.send(f"Role '{role_name}' not found. Available roles: {available_roles}")
+        await ctx.send(f"Role {role_name} not found. Available roles: {available_roles}")
         return
     
     role_id = role_map[role_name_lower]
@@ -620,12 +695,12 @@ async def delrole(ctx, role_name: str):
         return
     
     if role not in member.roles:
-        await ctx.send(f"{member.mention} does not have the '{role.name}' role")
+        await ctx.send(f"{member.mention} does not have the {role.name} role")
         return
     
     try:
         await member.remove_roles(role)
-        await ctx.send(f"Removed role '{role.name}' from {member.mention}")
+        await ctx.send(f"Removed role {role.name} from {member.mention}")
     except discord.Forbidden:
         await ctx.send("I do not have permission to remove this role")
     except discord.HTTPException as e:
@@ -672,6 +747,32 @@ async def typeinchannel(ctx):
         await ctx.send("Message sent to the channel!", delete_after=3)
 
 @bot.command()
+async def sendverifyshit(ctx):
+    global verify_message_id, verify_channel_id
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    channel = bot.get_channel(VERIFY_CHANNEL_ID)
+    if not channel:
+        await ctx.send("Verify channel not found!", delete_after=3)
+        return
+    
+    embed = discord.Embed(
+        description="HollyScriptX\nClick the button below to verify",
+        color=discord.Color.from_rgb(255, 255, 255)
+    )
+    
+    message = await channel.send(embed=embed)
+    await message.add_reaction("✅")
+    
+    verify_message_id = message.id
+    verify_channel_id = channel.id
+    
+    await ctx.send("Verification message sent!", delete_after=3)
+
+@bot.command()
 async def help_commands(ctx):
     embed = discord.Embed(
         title="Bot Commands",
@@ -693,7 +794,6 @@ async def help_commands(ctx):
     embed.add_field(name=",giverole (role_name)", value="Give a role to replied user", inline=False)
     embed.add_field(name=",delrole (role_name)", value="Remove a role from replied user", inline=False)
     embed.add_field(name=",invite", value="Send invite to Discord server", inline=False)
-    embed.add_field(name=",saysomething", value="Bot says I'm here again in specific channel", inline=False)
     embed.add_field(name=",help_commands", value="Show this help message", inline=False)
     
     available_roles = ', '.join(role_map.keys())
