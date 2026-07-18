@@ -124,8 +124,8 @@ async def on_message(message):
             spam_channel = bot.get_channel(1513695339167617084)
             if spam_channel:
                 embed = discord.Embed(
-                    description=f"> {message.author.mention} Has been timed-out for spamming.",
-                    color=discord.Color.from_rgb(200, 50, 50)
+                    description=f"{message.author.mention} Has been timed-out for spamming.",
+                    color=discord.Color.from_rgb(220, 20, 20)
                 )
                 embed.add_field(name="Duration", value=f"{mute_duration} seconds", inline=True)
                 embed.add_field(name="Warning Count", value=f"{user_warnings[user_id]}", inline=True)
@@ -147,8 +147,8 @@ async def on_message(message):
                 try:
                     await message.author.ban(reason="Repeated spamming (5+ warnings)")
                     embed = discord.Embed(
-                        description=f"> {message.author.mention} has been permanently **banned** for repeated spamming.",
-                        color=discord.Color.from_rgb(200, 50, 50)
+                        description=f"{message.author.mention} has been permanently **banned** for repeated spamming.",
+                        color=discord.Color.from_rgb(220, 20, 20)
                     )
                     await spam_channel.send(embed=embed)
                     user_warnings[user_id] = 0
@@ -172,15 +172,15 @@ async def auto_ban(message):
         
         if log_channel:
             embed = discord.Embed(
-                description=f"> {member.mention} has been permanently **banned** from **HollyScriptX**\n> Reason: **Scammed Accounts detection 1.0**\n> Typed Message:\n> {message.content}",
-                color=discord.Color.from_rgb(200, 50, 50)
+                description=f"{member.mention} has been permanently **banned** from **HollyScriptX**\nReason: **Scammed Accounts detection 1.0**\nTyped Message:\n{message.content}",
+                color=discord.Color.from_rgb(220, 20, 20)
             )
             await log_channel.send(embed=embed)
         
         try:
             embed = discord.Embed(
-                description=f"> You have been permanently **banned** from **HollyScriptX**\n> Reason: Auto-ban. Typed in do not type channel (prob hacked account).\n\n> You still can get unbanned, type to @t3e6 on discord and explain what happened.",
-                color=discord.Color.from_rgb(200, 50, 50)
+                description=f"You have been permanently **banned** from **HollyScriptX**\nReason: Auto-ban. Typed in do not type channel (prob hacked account).\n\nYou still can get unbanned, type to @t3e6 on discord and explain what happened.",
+                color=discord.Color.from_rgb(220, 20, 20)
             )
             await member.send(embed=embed)
         except:
@@ -220,7 +220,7 @@ async def clear(ctx, amount: int):
         await ctx.send("Cannot delete more than 100 messages at once")
         return
     deleted = await ctx.channel.purge(limit=amount + 1)
-    msg = await ctx.send(f"> Deleted {len(deleted) - 1} messages")
+    msg = await ctx.send(f"Deleted {len(deleted) - 1} messages")
     await msg.delete(delay=3)
 
 @bot.command()
@@ -237,13 +237,13 @@ async def ban(ctx, member: discord.Member = None, *, reason = "No Reason Provide
         await member.ban(reason=reason)
         try:
             embed = discord.Embed(
-                description=f"> You have been **permanently banned** from **HollyScriptX**\n> Banned By: {ctx.author.mention}\n> Reason: **{reason}**",
-                color=discord.Color.from_rgb(200, 50, 50)
+                description=f"You have been **permanently banned** from **HollyScriptX**\nBanned By: {ctx.author.mention}\nReason: **{reason}**",
+                color=discord.Color.from_rgb(220, 20, 20)
             )
             await member.send(embed=embed)
         except:
             pass
-        await ctx.send(f"> User {member.mention} has been banned. Reason: {reason}")
+        await ctx.send(f"User {member.mention} has been banned. Reason: {reason}")
     except discord.Forbidden:
         await ctx.send("I do not have permission to ban this user")
     except discord.HTTPException as e:
@@ -269,8 +269,8 @@ async def unban(ctx, *, user_input):
     try:
         await ctx.guild.unban(user)
         embed = discord.Embed(
-            description=f"> {user.mention} **has been unbanned!**",
-            color=discord.Color.from_rgb(50, 200, 50)
+            description=f"{user.mention} **has been unbanned!**",
+            color=discord.Color.from_rgb(50, 255, 50)
         )
         await ctx.send(embed=embed)
     except discord.NotFound:
@@ -293,8 +293,8 @@ async def unmute(ctx, member: discord.Member = None):
     try:
         await member.remove_timeout()
         embed = discord.Embed(
-            description=f"> {member.mention} **has been unmuted!**",
-            color=discord.Color.from_rgb(50, 200, 50)
+            description=f"{member.mention} **has been unmuted!**",
+            color=discord.Color.from_rgb(50, 255, 50)
         )
         await ctx.send(embed=embed)
     except discord.Forbidden:
@@ -323,16 +323,16 @@ async def hardban(ctx, member: discord.Member = None, *, reason = "Not specified
         
         try:
             embed = discord.Embed(
-                description=f"> You have been **hard-banned** from **HollyScriptX**\n> Banned by: {ctx.author.mention}\n> Reason: **{reason}**",
-                color=discord.Color.from_rgb(200, 50, 50)
+                description=f"You have been **hard-banned** from **HollyScriptX**\nBanned by: {ctx.author.mention}\nReason: **{reason}**",
+                color=discord.Color.from_rgb(220, 20, 20)
             )
             await member.send(embed=embed)
         except:
             pass
         
         embed = discord.Embed(
-            description=f"> {member.mention} **has been hard-banned!**",
-            color=discord.Color.from_rgb(200, 50, 50)
+            description=f"{member.mention} **has been hard-banned!**",
+            color=discord.Color.from_rgb(220, 20, 20)
         )
         embed.add_field(name="Reason", value=reason, inline=False)
         await ctx.send(embed=embed)
@@ -372,8 +372,8 @@ async def unhardban(ctx, *, user_input):
                 pass
         
         embed = discord.Embed(
-            description=f"> {member.mention} **has been unhard-banned!**",
-            color=discord.Color.from_rgb(50, 200, 50)
+            description=f"{member.mention} **has been unhard-banned!**",
+            color=discord.Color.from_rgb(50, 255, 50)
         )
         await ctx.send(embed=embed)
         
@@ -398,14 +398,14 @@ async def mute(ctx, member: discord.Member = None, *, reason = "No Reason Provid
         
         try:
             embed = discord.Embed(
-                description=f"> You have been **muted** in **HollyScriptX**\n> Muted By: {ctx.author.mention}\n> Reason: **{reason}**\n> Duration: 24 hours",
-                color=discord.Color.from_rgb(200, 150, 50)
+                description=f"You have been **muted** in **HollyScriptX**\nMuted By: {ctx.author.mention}\nReason: **{reason}**\nDuration: 24 hours",
+                color=discord.Color.from_rgb(255, 165, 0)
             )
             await member.send(embed=embed)
         except:
             pass
         
-        await ctx.send(f"> User {member.mention} has been muted. Reason: {reason}")
+        await ctx.send(f"User {member.mention} has been muted. Reason: {reason}")
     except discord.Forbidden:
         await ctx.send("I do not have permission to mute this user")
     except discord.HTTPException as e:
@@ -429,29 +429,29 @@ async def warn(ctx, member: discord.Member = None, *, reason = "No Reason Provid
     
     try:
         embed = discord.Embed(
-            description=f"> You have received a warning in **HollyScriptX**\n> Warned By: {ctx.author.mention}\n> Reason: **{reason}**\n> Total Warnings: {warn_count}",
-            color=discord.Color.from_rgb(200, 180, 50)
+            description=f"You have received a warning in **HollyScriptX**\nWarned By: {ctx.author.mention}\nReason: **{reason}**\nTotal Warnings: {warn_count}",
+            color=discord.Color.from_rgb(255, 215, 0)
         )
         await member.send(embed=embed)
     except:
         pass
     
-    await ctx.send(f"> User {member.mention} has been warned. Reason: {reason}. Total warnings: {warn_count}")
+    await ctx.send(f"User {member.mention} has been warned. Reason: {reason}. Total warnings: {warn_count}")
     
     if warn_count >= 3:
         try:
             log_channel = bot.get_channel(1518832499122507786)
             if log_channel:
                 embed = discord.Embed(
-                    description=f"> {member.mention} have been permanently banned because received 3 warns",
-                    color=discord.Color.from_rgb(200, 50, 50)
+                    description=f"{member.mention} have been permanently banned because received 3 warns",
+                    color=discord.Color.from_rgb(220, 20, 20)
                 )
                 await log_channel.send(embed=embed)
             
             try:
                 embed = discord.Embed(
-                    description=f"> You have been permanently banned from **HollyScriptX**\n> Reason: lil stupid nigga got 3 warns lmaoo",
-                    color=discord.Color.from_rgb(200, 50, 50)
+                    description=f"You have been permanently banned from **HollyScriptX**\nReason: lil stupid nigga got 3 warns lmaoo",
+                    color=discord.Color.from_rgb(220, 20, 20)
                 )
                 await member.send(embed=embed)
             except:
