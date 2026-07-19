@@ -24,6 +24,7 @@ hardbanned_users = set()
 warnings = defaultdict(list)
 user_messages = defaultdict(list)
 user_warnings = defaultdict(int)
+user_message_times = defaultdict(list)
 verify_running = False
 banned_count = 0
 verify_message_id = None
@@ -151,36 +152,67 @@ async def on_raw_reaction_add(payload):
     except Exception as e:
         print(f'Verify error: {e}')
 
+async def punish_user(message, reason, duration=60):
+    try:
+        timeout = discord.utils.utcnow() + timedelta(seconds=duration)
+        await message.author.timeout(timeout, reason=reason)
+        
+        embed = discord.Embed(
+            description=f"{message.author.mention} has been **muted** for {reason}",
+            color=discord.Color.from_rgb(255, 180, 50)
+        )
+        await message.channel.send(embed=embed)
+        
+        try:
+            embed = discord.Embed(
+                description=f"You have been **muted** in **HollyScriptX**\nReason: **{reason}**\nDuration: {duration} seconds",
+                color=discord.Color.from_rgb(255, 180, 50)
+            )
+            await message.author.send(embed=embed)
+        except:
+            pass
+        
+        return True
+    except discord.Forbidden:
+        embed = discord.Embed(
+            description=f"I dont have permission to punish that user.",
+            color=discord.Color.from_rgb(255, 180, 50)
+        )
+        await message.channel.send(embed=embed)
+        return False
+    except Exception as e:
+        print(f'Punish error: {e}')
+        return False
+
 async def check_spam(message):
     user_id = message.author.id
     current_time = time.time()
     
-    user_messages[user_id] = [t for t in user_messages[user_id] if current_time - t < 2]
-    user_messages[user_id].append(current_time)
+    user_message_times[user_id] = [t for t in user_message_times[user_id] if current_time - t < 5]
+    user_message_times[user_id].append(current_time)
     
-    if len(user_messages[user_id]) >= 3:
-        try:
-            timeout = discord.utils.utcnow() + timedelta(seconds=60)
-            await message.author.timeout(timeout, reason="Spamming (3 messages in 2 seconds)")
-            
-            embed = discord.Embed(
-                description=f"{message.author.mention} has been **muted** for spamming! (3 messages in 2 seconds)",
-                color=discord.Color.from_rgb(255, 180, 50)
-            )
-            await message.channel.send(embed=embed)
-            
-            try:
-                embed = discord.Embed(
-                    description=f"You have been **muted** in **HollyScriptX**\nReason: **Spamming (3 messages in 2 seconds)**\nDuration: 60 seconds",
-                    color=discord.Color.from_rgb(255, 180, 50)
-                )
-                await message.author.send(embed=embed)
-            except:
-                pass
-            
+    if len(user_message_times[user_id]) >= 3:
+        await punish_user(message, "3 messages in 5 seconds", 60)
+        user_message_times[user_id] = []
+        return
+    
+    content = message.content
+    
+    if len(content) > 5:
+        caps_count = sum(1 for c in content if c.isupper())
+        caps_percent = caps_count / len(content) * 100 if len(content) > 0 else 0
+        if caps_percent > 70 and len(content) > 10:
+            await punish_user(message, "Caps spam", 120)
+            return
+    
+    if message.attachments:
+        user_messages[user_id] = [t for t in user_messages[user_id] if current_time - t < 3]
+        user_messages[user_id].append(current_time)
+        
+        if len(user_messages[user_id]) >= 3:
+            await punish_user(message, "Spamming images/files", 90)
             user_messages[user_id] = []
-        except Exception as e:
-            print(f'Spam mute error: {e}')
+            return
 
 async def auto_ban(message):
     global banned_count
