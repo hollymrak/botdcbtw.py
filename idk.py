@@ -7,8 +7,6 @@ from collections import defaultdict
 import time
 import asyncio
 import random
-import aiohttp
-import json
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 SERVER_ID = 1504482964661076098
@@ -55,34 +53,16 @@ CHANNELS_TO_LOCK = [
     1514945294964359329
 ]
 
-# AI API ключ
-AI_API_KEY = "sk-ijklmnopqrstuvwxijklmnopqrstuvwxijklmnop"
-AI_API_URL = "https://api.openai.com/v1/chat/completions"
-
-async def get_ai_response(question):
-    try:
-        headers = {
-            "Authorization": f"Bearer {AI_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        data = {
-            "model": "gpt-3.5-turbo",
-            "messages": [
-                {"role": "system", "content": "You are a helpful Discord bot assistant. Answer briefly and clearly."},
-                {"role": "user", "content": question}
-            ],
-            "max_tokens": 200,
-            "temperature": 0.7
-        }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(AI_API_URL, headers=headers, json=data, timeout=10) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    return result['choices'][0]['message']['content']
-                else:
-                    return None
-    except:
-        return None
+GREETINGS = [
+    "Hello! How can I help you today?",
+    "Hey there! What's up?",
+    "Hi! Nice to see you!",
+    "Greetings! How's it going?",
+    "Hey! What can I do for you?",
+    "Hello! Need any help?",
+    "Hi there! How are you doing?",
+    "Hey! I'm here for you!"
+]
 
 @bot.event
 async def on_ready():
@@ -111,20 +91,7 @@ async def on_message(message):
         return
     
     if bot.user in message.mentions:
-        ai_response = await get_ai_response(message.content)
-        if ai_response:
-            await message.reply(ai_response)
-        else:
-            await message.reply(random.choice([
-                "Hello! How can I help you today?",
-                "Hey there! What's up?",
-                "Hi! Nice to see you!",
-                "Greetings! How's it going?",
-                "Hey! What can I do for you?",
-                "Hello! Need any help?",
-                "Hi there! How are you doing?",
-                "Hey! I'm here for you!"
-            ]))
+        await message.reply(random.choice(GREETINGS))
         await bot.process_commands(message)
         return
     
@@ -178,7 +145,7 @@ async def on_raw_reaction_add(payload):
         if log_channel:
             embed = discord.Embed(
                 description=f"HollyScriptX\n{member.mention} Just successfully verified!",
-                color=discord.Color.from_rgb(50, 255, 50)
+                color=discord.Color.from_rgb(100, 220, 100)
             )
             await log_channel.send(embed=embed)
     except Exception as e:
@@ -191,55 +158,29 @@ async def check_spam(message):
     user_messages[user_id] = [t for t in user_messages[user_id] if current_time - t < 2]
     user_messages[user_id].append(current_time)
     
-    if len(user_messages[user_id]) >= 5:
-        user_warnings[user_id] += 1
-        warn_count = user_warnings[user_id]
-        
-        if user_id not in warnings:
-            warnings[user_id] = []
-        warnings[user_id].append("Spamming (5 messages in 2 seconds)")
-        
+    if len(user_messages[user_id]) >= 3:
         try:
+            timeout = discord.utils.utcnow() + timedelta(seconds=60)
+            await message.author.timeout(timeout, reason="Spamming (3 messages in 2 seconds)")
+            
             embed = discord.Embed(
-                description=f"You have received a warning in **HollyScriptX**\nWarned By: Auto-Mod\nReason: **Spamming (5 messages in 2 seconds)**\nTotal Warnings: {warn_count}",
-                color=discord.Color.from_rgb(255, 215, 0)
-            )
-            await message.author.send(embed=embed)
-        except:
-            pass
-        
-        if message.channel:
-            embed = discord.Embed(
-                description=f"{message.author.mention} has been warned for spamming! (5 messages in 2 seconds)",
-                color=discord.Color.from_rgb(255, 215, 0)
+                description=f"{message.author.mention} has been **muted** for spamming! (3 messages in 2 seconds)",
+                color=discord.Color.from_rgb(255, 180, 50)
             )
             await message.channel.send(embed=embed)
-        
-        user_messages[user_id] = []
-        
-        if warn_count >= 3:
+            
             try:
-                log_channel = bot.get_channel(1518832499122507786)
-                if log_channel:
-                    embed = discord.Embed(
-                        description=f"{message.author.mention} have been permanently banned because received 3 warns",
-                        color=discord.Color.from_rgb(220, 20, 20)
-                    )
-                    await log_channel.send(embed=embed)
-                
-                try:
-                    embed = discord.Embed(
-                        description=f"You have been permanently banned from **HollyScriptX**\nReason: lil stupid nigga got 3 warns lmaoo",
-                        color=discord.Color.from_rgb(220, 20, 20)
-                    )
-                    await message.author.send(embed=embed)
-                except:
-                    pass
-                
-                await message.author.ban(reason="lil stupid nigga got 3 warns lmaoo")
-                user_warnings[user_id] = 0
-            except Exception as e:
-                print(f'Auto ban 3 warns error: {e}')
+                embed = discord.Embed(
+                    description=f"You have been **muted** in **HollyScriptX**\nReason: **Spamming (3 messages in 2 seconds)**\nDuration: 60 seconds",
+                    color=discord.Color.from_rgb(255, 180, 50)
+                )
+                await message.author.send(embed=embed)
+            except:
+                pass
+            
+            user_messages[user_id] = []
+        except Exception as e:
+            print(f'Spam mute error: {e}')
 
 async def auto_ban(message):
     global banned_count
@@ -251,14 +192,14 @@ async def auto_ban(message):
         if log_channel:
             embed = discord.Embed(
                 description=f"{member.mention} has been permanently **banned** from **HollyScriptX**\nReason: **Scammed Accounts detection 1.0**\nTyped Message:\n{message.content}",
-                color=discord.Color.from_rgb(220, 20, 20)
+                color=discord.Color.from_rgb(220, 60, 60)
             )
             await log_channel.send(embed=embed)
         
         try:
             embed = discord.Embed(
                 description=f"You have been permanently **banned** from **HollyScriptX**\nReason: Auto-ban. Typed in do not type channel (prob hacked account).\n\nYou still can get unbanned, type to @t3e6 on discord and explain what happened.",
-                color=discord.Color.from_rgb(220, 20, 20)
+                color=discord.Color.from_rgb(220, 60, 60)
             )
             await member.send(embed=embed)
         except:
@@ -316,7 +257,7 @@ async def ban(ctx, member: discord.Member = None, *, reason = "No Reason Provide
         try:
             embed = discord.Embed(
                 description=f"You have been **permanently banned** from **HollyScriptX**\nBanned By: {ctx.author.mention}\nReason: **{reason}**",
-                color=discord.Color.from_rgb(220, 20, 20)
+                color=discord.Color.from_rgb(220, 60, 60)
             )
             await member.send(embed=embed)
         except:
@@ -348,7 +289,7 @@ async def unban(ctx, *, user_input):
         await ctx.guild.unban(user)
         embed = discord.Embed(
             description=f"{user.mention} **has been unbanned!**",
-            color=discord.Color.from_rgb(50, 255, 50)
+            color=discord.Color.from_rgb(100, 220, 100)
         )
         await ctx.send(embed=embed)
     except discord.NotFound:
@@ -372,7 +313,7 @@ async def unmute(ctx, member: discord.Member = None):
         await member.remove_timeout()
         embed = discord.Embed(
             description=f"{member.mention} **has been unmuted!**",
-            color=discord.Color.from_rgb(50, 255, 50)
+            color=discord.Color.from_rgb(100, 220, 100)
         )
         await ctx.send(embed=embed)
     except discord.Forbidden:
@@ -402,7 +343,7 @@ async def hardban(ctx, member: discord.Member = None, *, reason = "Not specified
         try:
             embed = discord.Embed(
                 description=f"You have been **hard-banned** from **HollyScriptX**\nBanned by: {ctx.author.mention}\nReason: **{reason}**",
-                color=discord.Color.from_rgb(220, 20, 20)
+                color=discord.Color.from_rgb(220, 60, 60)
             )
             await member.send(embed=embed)
         except:
@@ -410,7 +351,7 @@ async def hardban(ctx, member: discord.Member = None, *, reason = "Not specified
         
         embed = discord.Embed(
             description=f"{member.mention} **has been hard-banned!**",
-            color=discord.Color.from_rgb(220, 20, 20)
+            color=discord.Color.from_rgb(220, 60, 60)
         )
         embed.add_field(name="Reason", value=reason, inline=False)
         await ctx.send(embed=embed)
@@ -451,7 +392,7 @@ async def unhardban(ctx, *, user_input):
         
         embed = discord.Embed(
             description=f"{member.mention} **has been unhard-banned!**",
-            color=discord.Color.from_rgb(50, 255, 50)
+            color=discord.Color.from_rgb(100, 220, 100)
         )
         await ctx.send(embed=embed)
         
@@ -477,7 +418,7 @@ async def mute(ctx, member: discord.Member = None, *, reason = "No Reason Provid
         try:
             embed = discord.Embed(
                 description=f"You have been **muted** in **HollyScriptX**\nMuted By: {ctx.author.mention}\nReason: **{reason}**\nDuration: 24 hours",
-                color=discord.Color.from_rgb(255, 165, 0)
+                color=discord.Color.from_rgb(255, 180, 50)
             )
             await member.send(embed=embed)
         except:
@@ -488,56 +429,6 @@ async def mute(ctx, member: discord.Member = None, *, reason = "No Reason Provid
         await ctx.send("I do not have permission to mute this user")
     except discord.HTTPException as e:
         await ctx.send(f"Error muting user: {e}")
-
-@bot.command()
-@commands.has_role(ADMIN_ROLE_ID)
-async def warn(ctx, member: discord.Member = None, *, reason = "No Reason Provided"):
-    if member is None and ctx.message.reference:
-        referenced = await ctx.channel.fetch_message(ctx.message.reference.message_id)
-        member = referenced.author
-    if member is None:
-        await ctx.send("Usage: ,warn (@user) (reason) or reply to a message with ,warn")
-        return
-    
-    if member.id not in warnings:
-        warnings[member.id] = []
-    
-    warnings[member.id].append(reason)
-    warn_count = len(warnings[member.id])
-    
-    try:
-        embed = discord.Embed(
-            description=f"You have received a warning in **HollyScriptX**\nWarned By: {ctx.author.mention}\nReason: **{reason}**\nTotal Warnings: {warn_count}",
-            color=discord.Color.from_rgb(255, 215, 0)
-        )
-        await member.send(embed=embed)
-    except:
-        pass
-    
-    await ctx.send(f"User {member.mention} has been warned. Reason: {reason}. Total warnings: {warn_count}")
-    
-    if warn_count >= 3:
-        try:
-            log_channel = bot.get_channel(1518832499122507786)
-            if log_channel:
-                embed = discord.Embed(
-                    description=f"{member.mention} have been permanently banned because received 3 warns",
-                    color=discord.Color.from_rgb(220, 20, 20)
-                )
-                await log_channel.send(embed=embed)
-            
-            try:
-                embed = discord.Embed(
-                    description=f"You have been permanently banned from **HollyScriptX**\nReason: lil stupid nigga got 3 warns lmaoo",
-                    color=discord.Color.from_rgb(220, 20, 20)
-                )
-                await member.send(embed=embed)
-            except:
-                pass
-            
-            await member.ban(reason="lil stupid nigga got 3 warns lmaoo")
-        except Exception as e:
-            print(f'Auto ban 3 warns error: {e}')
 
 @bot.command()
 @commands.has_role(ADMIN_ROLE_ID)
@@ -784,7 +675,6 @@ async def help_commands(ctx):
     embed.add_field(name=",unban (user)", value="Unban a user", inline=False)
     embed.add_field(name=",mute (@user) (reason)", value="Mute a user for 24 hours", inline=False)
     embed.add_field(name=",unmute (@user)", value="Unmute a user", inline=False)
-    embed.add_field(name=",warn (@user) (reason)", value="Give a warning to a user", inline=False)
     embed.add_field(name=",hardban (@user) (reason)", value="Hard ban a user (remove all channel access)", inline=False)
     embed.add_field(name=",unhardban (user)", value="Remove hard ban from a user", inline=False)
     embed.add_field(name=",lockchats", value="Lock all specified channels", inline=False)
