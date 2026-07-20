@@ -183,7 +183,7 @@ async def warn_user(message, reason):
     )
     embed.add_field(name="Moderator", value=message.author.mention, inline=False)
     embed.add_field(name="Reason", value=reason, inline=False)
-    embed.add_field(name="Warning", value=f"{warn_count}/3", inline=False)
+    embed.add_field(name="Warning", value=f"{warn_count}/5", inline=False)
     embed.set_footer(text=f"{datetime.now().strftime('%m/%d/%Y %I:%M %p')}")
     
     try:
@@ -192,37 +192,39 @@ async def warn_user(message, reason):
         pass
     
     embed_channel = discord.Embed(
-        description=f"{message.author.mention} has been warned for {reason} #{warn_count}/3",
+        description=f"{message.author.mention} has been warned for {reason} #{warn_count}/5",
         color=discord.Color.from_rgb(255, 180, 50)
     )
     await message.channel.send(embed=embed_channel)
     
-    if warn_count >= 3:
+    if warn_count >= 5:
         try:
-            await message.author.ban(reason="3 warnings - automatic ban")
+            timeout_duration = 5 * 60 * 60  # 5 часов в секундах
+            timeout_until = discord.utils.utcnow() + timedelta(seconds=timeout_duration)
+            await message.author.timeout(timeout_until, reason="5 warnings - automatic mute")
             
-            embed_ban = discord.Embed(
-                title="Banned",
-                description=f"You have been **banned** from\n**HollyScriptX**",
-                color=discord.Color.from_rgb(220, 80, 80)
+            embed_mute = discord.Embed(
+                title="Muted",
+                description=f"You have been **muted** from\n**HollyScriptX**",
+                color=discord.Color.from_rgb(255, 180, 50)
             )
-            embed_ban.add_field(name="Moderator", value="Auto-Mod", inline=False)
-            embed_ban.add_field(name="Reason", value="3 warnings", inline=False)
-            embed_ban.add_field(name="Duration", value="Permanent", inline=False)
-            embed_ban.set_footer(text=f"{datetime.now().strftime('%m/%d/%Y %I:%M %p')}")
+            embed_mute.add_field(name="Moderator", value="Auto-Mod", inline=False)
+            embed_mute.add_field(name="Reason", value="5 warnings", inline=False)
+            embed_mute.add_field(name="Duration", value="5 hours", inline=False)
+            embed_mute.set_footer(text=f"{datetime.now().strftime('%m/%d/%Y %I:%M %p')}")
             
             try:
-                await message.author.send(embed=embed_ban)
+                await message.author.send(embed=embed_mute)
             except:
                 pass
             
-            embed_channel_ban = discord.Embed(
-                description=f"{message.author.mention} has been banned for violating rules. #3/3",
-                color=discord.Color.from_rgb(220, 80, 80)
+            embed_channel_mute = discord.Embed(
+                description=f"{message.author.mention} has been muted for 5 hours for violating rules. #5/5",
+                color=discord.Color.from_rgb(255, 180, 50)
             )
-            await message.channel.send(embed=embed_channel_ban)
+            await message.channel.send(embed=embed_channel_mute)
         except Exception as e:
-            print(f'Ban error: {e}')
+            print(f'Mute error: {e}')
 
 async def check_violations(message):
     user_id = message.author.id
@@ -549,7 +551,7 @@ async def warn(ctx, member: discord.Member = None, *, reason = "No Reason Provid
     )
     embed.add_field(name="Moderator", value=ctx.author.mention, inline=False)
     embed.add_field(name="Reason", value=reason, inline=False)
-    embed.add_field(name="Warning", value=f"{warn_count}/3", inline=False)
+    embed.add_field(name="Warning", value=f"{warn_count}/5", inline=False)
     embed.set_footer(text=f"{datetime.now().strftime('%m/%d/%Y %I:%M %p')}")
     
     try:
@@ -559,34 +561,36 @@ async def warn(ctx, member: discord.Member = None, *, reason = "No Reason Provid
     
     await ctx.send(f"User {member.mention} has been warned. Reason: {reason}. Total warnings: {warn_count}")
     
-    if warn_count >= 3:
+    if warn_count >= 5:
         try:
-            await member.ban(reason="3 warnings")
+            timeout_duration = 5 * 60 * 60  # 5 часов в секундах
+            timeout_until = discord.utils.utcnow() + timedelta(seconds=timeout_duration)
+            await member.timeout(timeout_until, reason="5 warnings - automatic mute")
             
-            embed_ban = discord.Embed(
-                title="Banned",
-                description=f"You have been **banned** from\n**HollyScriptX**",
-                color=discord.Color.from_rgb(220, 80, 80)
+            embed_mute = discord.Embed(
+                title="Muted",
+                description=f"You have been **muted** from\n**HollyScriptX**",
+                color=discord.Color.from_rgb(255, 180, 50)
             )
-            embed_ban.add_field(name="Moderator", value=ctx.author.mention, inline=False)
-            embed_ban.add_field(name="Reason", value="3 warnings", inline=False)
-            embed_ban.add_field(name="Duration", value="Permanent", inline=False)
-            embed_ban.set_footer(text=f"{datetime.now().strftime('%m/%d/%Y %I:%M %p')}")
+            embed_mute.add_field(name="Moderator", value=ctx.author.mention, inline=False)
+            embed_mute.add_field(name="Reason", value="5 warnings", inline=False)
+            embed_mute.add_field(name="Duration", value="5 hours", inline=False)
+            embed_mute.set_footer(text=f"{datetime.now().strftime('%m/%d/%Y %I:%M %p')}")
             
             try:
-                await member.send(embed=embed_ban)
+                await member.send(embed=embed_mute)
             except:
                 pass
             
             log_channel = bot.get_channel(1518832499122507786)
             if log_channel:
                 embed_log = discord.Embed(
-                    description=f"{member.mention} have been permanently banned because received 3 warns",
-                    color=discord.Color.from_rgb(220, 80, 80)
+                    description=f"{member.mention} have been muted for 5 hours because received 5 warns",
+                    color=discord.Color.from_rgb(255, 180, 50)
                 )
                 await log_channel.send(embed_log)
         except Exception as e:
-            print(f'Auto ban 3 warns error: {e}')
+            print(f'Auto mute 5 warns error: {e}')
 
 @bot.command()
 @commands.has_role(ADMIN_ROLE_ID)
