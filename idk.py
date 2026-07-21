@@ -39,24 +39,6 @@ MONITORED_USERS = {
     1430922990706491546: [1508842712542089498]
 }
 
-role_map = {
-    'retard': 1513440439766876180,
-    'tester': 1504503576653856868,
-    'known': 1504503401059324055,
-    'vip': 1508798935991320767,
-    'coolguy': 1508842712542089498,
-    'ticketssupport': 1509149262334791791,
-    'contentcreator': 1508793047230709932,
-    'ticketsadmin': 1509149263123320874,
-    'helper': 1504503460740202567,
-    'support': 1508782838600830996,
-    'mod': 1504503217382232166,
-    'senior mod': 1504502978374139977,
-    'manager': 1508790828448092211,
-    'co-owner': 1508790026518003713,
-    'dev': 1504502883872411800
-}
-
 CHANNELS_TO_LOCK = [1513695339167617084, 1513695434026254438, 1514945294964359329]
 VOICE_CHANNELS_TO_LOCK = [1513692263010799716, 1513692362931703818, 1513692441281036348, 1513692510306963476, 1513692585682669618]
 STAFF_ROLES = [1508782838600830996, 1504503460740202567, 1508793047230709932, 1504503217382232166, 1504502978374139977, 1508790828448092211, 1516192523691884816]
@@ -547,74 +529,6 @@ async def showstafflist(ctx):
     await ctx.send(embed=embed)
 
 @bot.command()
-@commands.has_role(1504502978374139977)
-async def giverole(ctx, role_name: str):
-    if not ctx.message.reference:
-        await ctx.send("You must reply to a message to give a role")
-        return
-    try:
-        referenced_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
-        member = referenced_msg.author
-    except:
-        await ctx.send("Could not find the user")
-        return
-    role_name_lower = role_name.lower()
-    if role_name_lower not in role_map:
-        available_roles = ', '.join(role_map.keys())
-        await ctx.send(f"Role {role_name} not found. Available roles: {available_roles}")
-        return
-    role_id = role_map[role_name_lower]
-    role = ctx.guild.get_role(role_id)
-    if not role:
-        await ctx.send(f"Role not found on this server")
-        return
-    max_allowed = ['helper', 'support', 'mod', 'senior mod']
-    if role_name_lower not in max_allowed:
-        await ctx.send(f"You can only give roles up to **helper**")
-        return
-    try:
-        await member.add_roles(role)
-        await ctx.send(f"Added role {role.name} to {member.mention}")
-    except discord.Forbidden:
-        await ctx.send("I do not have permission to give this role")
-    except discord.HTTPException as e:
-        await ctx.send(f"Error giving role: {e}")
-
-@bot.command()
-@commands.has_role(1504502978374139977)
-async def delrole(ctx, role_name: str):
-    if not ctx.message.reference:
-        await ctx.send("You must reply to a message to remove a role")
-        return
-    try:
-        referenced_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
-        member = referenced_msg.author
-    except:
-        await ctx.send("Could not find the user")
-        return
-    role_name_lower = role_name.lower()
-    if role_name_lower not in role_map:
-        available_roles = ', '.join(role_map.keys())
-        await ctx.send(f"Role {role_name} not found. Available roles: {available_roles}")
-        return
-    role_id = role_map[role_name_lower]
-    role = ctx.guild.get_role(role_id)
-    if not role:
-        await ctx.send(f"Role not found on this server")
-        return
-    max_allowed = ['helper', 'support', 'mod', 'senior mod']
-    if role_name_lower not in max_allowed:
-        await ctx.send(f"You can only remove roles up to **helper**")
-        return
-    try:
-        await member.remove_roles(role)
-        await ctx.send(f"Removed role {role.name} from {member.mention}")
-    except discord.Forbidden:
-        await ctx.send("I do not have permission to remove this role")
-    except discord.HTTPException as e:
-        await ctx.send(f"Error removing role: {e}")
-
-@bot.command()
 async def moderatorshelp(ctx):
     embed = discord.Embed(
         description="""# read this!! important for this discord server Staff.
@@ -625,11 +539,9 @@ this channel is maded to show your Permissions. ( USING OTHER BOTS FOR STAFF COM
 - You can fully control server even without using this bot.
 
 <@&1508790828448092211> Role Permissions:
-- Access to .giverole (maximum u can give is: **seniormod**)
 - Access to commands from the roles below
 
 <@&1504502978374139977> Role Permissions:
-- Access to .giverole or .delrole (maximum u can give is: **helper**
 - Access to audit logs & echo-logs and execution-logs.
 
 <@&1504503217382232166> Role Permissions:
@@ -762,8 +674,6 @@ async def help_commands(ctx):
     embed.add_field(name=".unlockchats", value="Unlock all specified channels", inline=False)
     embed.add_field(name=".verifyall", value="Verifies all people with unverified role", inline=False)
     embed.add_field(name=".stopverify", value="Stop verification process", inline=False)
-    embed.add_field(name=".giverole (role_name)", value="Give a role to replied user", inline=False)
-    embed.add_field(name=".delrole (role_name)", value="Remove a role from replied user", inline=False)
     embed.add_field(name=".down (InkGame / MurderMystery2 / Doors)", value="Mark selected script as down.", inline=False)
     embed.add_field(name=".down ALL", value="Mark all scripts as down.", inline=False)
     embed.add_field(name=".undetected (InkGame / MurderMystery2 / Doors)", value="Mark selected script as undetected.", inline=False)
@@ -772,8 +682,6 @@ async def help_commands(ctx):
     embed.add_field(name=".moderatorshelp", value="Show staff permissions", inline=False)
     embed.add_field(name=".invite", value="Send invite to Discord server", inline=False)
     embed.add_field(name=".help_commands", value="Show this help message", inline=False)
-    available_roles = ', '.join(role_map.keys())
-    embed.add_field(name="Available Roles", value=available_roles, inline=False)
     await ctx.send(embed=embed)
 
 # === ОСТАЛЬНЫЕ КОМАНДЫ ===
