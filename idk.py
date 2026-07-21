@@ -345,7 +345,11 @@ async def auto_ban(message):
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
-        await ctx.send("Command not found!")
+        embed = discord.Embed(
+            description="Command not found!",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
     elif isinstance(error, commands.MissingRole):
         if has_permission(ctx):
             await ctx.reinvoke()
@@ -391,11 +395,19 @@ async def warn_remove(ctx, member: discord.Member = None, code: str = None):
         referenced = await ctx.channel.fetch_message(ctx.message.reference.message_id)
         member = referenced.author
     if member is None or code is None:
-        await ctx.send("Usage: .warn-remove @user #1234")
+        embed = discord.Embed(
+            description="Usage: .warn-remove @user #1234",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
         return
     
     if member.id not in warnings:
-        await ctx.send(f"{member.mention} has no warnings.")
+        embed = discord.Embed(
+            description=f"{member.mention} has no warnings.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
         return
     
     removed = False
@@ -412,7 +424,11 @@ async def warn_remove(ctx, member: discord.Member = None, code: str = None):
             break
     
     if not removed:
-        await ctx.send(f"Warning {code} not found for {member.mention}")
+        embed = discord.Embed(
+            description=f"Warning {code} not found for {member.mention}",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
 
 @bot.command()
 @commands.has_role(1504503460740202567)
@@ -421,11 +437,19 @@ async def warns_list(ctx, member: discord.Member = None):
         referenced = await ctx.channel.fetch_message(ctx.message.reference.message_id)
         member = referenced.author
     if member is None:
-        await ctx.send("Usage: .warns-list @user")
+        embed = discord.Embed(
+            description="Usage: .warns-list @user",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
         return
     
     if member.id not in warnings or not warnings[member.id]:
-        await ctx.send(f"{member.mention} has no warnings.")
+        embed = discord.Embed(
+            description=f"{member.mention} has no warnings.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
         return
     
     embed = discord.Embed(
