@@ -18,6 +18,7 @@ VERIFIED_ROLE_ID = 1504503685328146585
 VERIFY_MESSAGE_CHANNEL_ID = 1513696689536372736
 VERIFY_LOG_CHANNEL_ID = 1513733733184831558
 JAIL_ROLE_ID = 1512734205971398676
+IMMUNITY_ROLE_ID = 1514879604270305291  # Роль иммунитета
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='.', intents=intents)
@@ -33,6 +34,26 @@ banned_count = 0
 verify_message_id = None
 verify_channel_id = None
 user_roles_backup = {}
+
+# Система кулдаунов
+command_cooldowns = defaultdict(dict)
+COOLDOWN_BAN = 7200  # 2 часа в секундах
+COOLDOWN_MUTE = 7200  # 2 часа в секундах
+COOLDOWN_JAIL = 7200  # 2 часа в секундах
+COOLDOWN_WARN = 7200  # 2 часа в секундах
+
+# Счетчики для отслеживания использований
+ban_usage = defaultdict(list)
+mute_usage = defaultdict(list)
+warn_usage = defaultdict(list)
+jail_usage = defaultdict(list)
+
+# Лимиты
+BAN_LIMIT = 3  # 3 бана
+MUTE_LIMIT = 3  # 3 мута
+WARN_LIMIT = 3  # 3 варна
+JAIL_LIMIT = 1  # 1 джейл
+TIME_WINDOW = 300  # 5 минут
 
 MONITORED_USERS = {
     1220374053416599604: [1516094850628587630, 1527291269330505759],
@@ -89,6 +110,87 @@ def has_permission(ctx):
     if ctx.author.guild_permissions.administrator:
         return True
     return False
+
+def has_immunity(member):
+    """Проверяет наличие иммунитета у пользователя"""
+    if member is None:
+        return False
+    for role in member.roles:
+        if role.id == IMMUNITY_ROLE_ID:
+            return True
+    return False
+
+def check_cooldown(user_id, command_type, limit, time_window, cooldown_duration):
+    """
+    Проверяет кулдаун для команды
+    command_type: 'ban', 'mute', 'warn', 'jail'
+    """
+    current_time = time.time()
+    
+    # Получаем список использований для этого пользователя и команды
+    if command_type == 'ban':
+        usages = ban_usage[user_id]
+    elif command_type == 'mute':
+        usages = mute_usage[user_id]
+    elif command_type == 'warn':
+        usages = warn_usage[user_id]
+    elif command_type == 'jail':
+        usages = jail_usage[user_id]
+    else:
+        return True, None
+    
+    # Очищаем старые записи (старше time_window)
+    usages = [t for t in usages if current_time - t < time_window]
+    
+    # Проверяем, не превышен ли лимит
+    if len(usages) >= limit:
+        # Проверяем, не истек ли кулдаун
+        if command_type in command_cooldowns[user_id]:
+            cooldown_end = command_cooldowns[user_id][command_type]
+            if current_time < cooldown_end:
+                remaining = int(cooldown_end - current_time)
+                return False, remaining
+        # Если кулдаун истек, обнуляем счетчик
+        usages = []
+    
+    # Сохраняем обновленный список
+    if command_type == 'ban':
+        ban_usage[user_id] = usages
+    elif command_type == 'mute':
+        mute_usage[user_id] = usages
+    elif command_type == 'warn':
+        warn_usage[user_id] = usages
+    elif command_type == 'jail':
+        jail_usage[user_id] = usages
+    
+    return True, None
+
+def add_cooldown(user_id, command_type, cooldown_duration):
+    """Добавляет кулдаун для пользователя"""
+    current_time = time.time()
+    if user_id not in command_cooldowns:
+        command_cooldowns[user_id] = {}
+    command_cooldowns[user_id][command_type] = current_time + cooldown_duration
+
+def record_usage(user_id, command_type):
+    """Записывает использование команды"""
+    current_time = time.time()
+    if command_type == 'ban':
+        ban_usage[user_id].append(current_time)
+    elif command_type == 'mute':
+        mute_usage[user_id].append(current_time)
+    elif command_type == 'warn':
+        warn_usage[user_id].append(current_time)
+    elif command_type == 'jail':
+        jail_usage[user_id].append(current_time)
+
+def format_time(seconds):
+    """Форматирует секунды в читаемый вид"""
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    if hours > 0:
+        return f"{hours} hour{'s' if hours > 1 else ''} and {minutes} minute{'s' if minutes != 1 else ''}"
+    return f"{minutes} minute{'s' if minutes != 1 else ''}"
 
 @bot.event
 async def on_ready():
@@ -204,6 +306,15 @@ async def on_raw_reaction_add(payload):
         print(f'Verify error: {e}')
 
 async def warn_user(message, reason, moderator=None):
+    # Проверяем иммунитет
+    if has_immunity(message.author):
+        embed = discord.Embed(
+            description=f"{message.author.mention} has immunity from punishments.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await message.channel.send(embed=embed)
+        return None
+    
     warn_code = generate_warn_code()
     user_warnings[message.author.id] += 1
     warn_count = user_warnings[message.author.id]
@@ -374,6 +485,32 @@ async def warn(ctx, member: discord.Member = None, *, args=None):
         await ctx.send(embed=embed)
         return
     
+    # Проверка иммунитета
+    if has_immunity(member):
+        embed = discord.Embed(
+            description=f"{member.mention} has immunity from punishments.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    # Проверка кулдауна для варнов
+    can_use, remaining = check_cooldown(ctx.author.id, 'warn', WARN_LIMIT, TIME_WINDOW, COOLDOWN_WARN)
+    if not can_use:
+        embed = discord.Embed(
+            description=f"You have reached the warn limit ({WARN_LIMIT} warns in 5 minutes). Please wait {format_time(remaining)} before using this command again.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    # Записываем использование
+    record_usage(ctx.author.id, 'warn')
+    
+    # Проверяем, нужно ли добавить кулдаун
+    if len(warn_usage[ctx.author.id]) >= WARN_LIMIT:
+        add_cooldown(ctx.author.id, 'warn', COOLDOWN_WARN)
+    
     reason = args or "No reason provided"
     await warn_user(member, reason, ctx.author.mention)
 
@@ -480,6 +617,32 @@ async def jail(ctx, member: discord.Member = None, *, reason="No reason provided
         await ctx.send("Usage: .jail @user (reason)")
         return
     
+    # Проверка иммунитета
+    if has_immunity(member):
+        embed = discord.Embed(
+            description=f"{member.mention} has immunity from punishments.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    # Проверка кулдауна для джейла
+    can_use, remaining = check_cooldown(ctx.author.id, 'jail', JAIL_LIMIT, TIME_WINDOW, COOLDOWN_JAIL)
+    if not can_use:
+        embed = discord.Embed(
+            description=f"You have reached the jail limit ({JAIL_LIMIT} jail in 5 minutes). Please wait {format_time(remaining)} before using this command again.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    # Записываем использование
+    record_usage(ctx.author.id, 'jail')
+    
+    # Проверяем, нужно ли добавить кулдаун
+    if len(jail_usage[ctx.author.id]) >= JAIL_LIMIT:
+        add_cooldown(ctx.author.id, 'jail', COOLDOWN_JAIL)
+    
     jail_role = ctx.guild.get_role(JAIL_ROLE_ID)
     if not jail_role:
         await ctx.send("Jail role not found!")
@@ -563,6 +726,15 @@ async def kick(ctx, member: discord.Member = None, *, reason="No reason provided
         await ctx.send("Usage: .kick @user (reason) or reply to a message with .kick")
         return
     
+    # Проверка иммунитета
+    if has_immunity(member):
+        embed = discord.Embed(
+            description=f"{member.mention} has immunity from punishments.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
     try:
         await member.kick(reason=reason)
         embed = discord.Embed(
@@ -584,6 +756,32 @@ async def ban(ctx, member: discord.Member = None, *, reason="No Reason Provided"
     if member is None:
         await ctx.send("Usage: .ban (@user) (reason) or reply to a message with .ban")
         return
+    
+    # Проверка иммунитета
+    if has_immunity(member):
+        embed = discord.Embed(
+            description=f"{member.mention} has immunity from punishments.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    # Проверка кулдауна для банов
+    can_use, remaining = check_cooldown(ctx.author.id, 'ban', BAN_LIMIT, TIME_WINDOW, COOLDOWN_BAN)
+    if not can_use:
+        embed = discord.Embed(
+            description=f"You have reached the ban limit ({BAN_LIMIT} bans in 5 minutes). Please wait {format_time(remaining)} before using this command again.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    # Записываем использование
+    record_usage(ctx.author.id, 'ban')
+    
+    # Проверяем, нужно ли добавить кулдаун
+    if len(ban_usage[ctx.author.id]) >= BAN_LIMIT:
+        add_cooldown(ctx.author.id, 'ban', COOLDOWN_BAN)
     
     try:
         await member.ban(reason=reason)
@@ -649,6 +847,32 @@ async def mute(ctx, member: discord.Member = None, *, reason="No Reason Provided
     if member is None:
         await ctx.send("Usage: .mute (@user) (reason) or reply to a message with .mute")
         return
+    
+    # Проверка иммунитета
+    if has_immunity(member):
+        embed = discord.Embed(
+            description=f"{member.mention} has immunity from punishments.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    # Проверка кулдауна для мутов
+    can_use, remaining = check_cooldown(ctx.author.id, 'mute', MUTE_LIMIT, TIME_WINDOW, COOLDOWN_MUTE)
+    if not can_use:
+        embed = discord.Embed(
+            description=f"You have reached the mute limit ({MUTE_LIMIT} mutes in 5 minutes). Please wait {format_time(remaining)} before using this command again.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    # Записываем использование
+    record_usage(ctx.author.id, 'mute')
+    
+    # Проверяем, нужно ли добавить кулдаун
+    if len(mute_usage[ctx.author.id]) >= MUTE_LIMIT:
+        add_cooldown(ctx.author.id, 'mute', COOLDOWN_MUTE)
     
     try:
         timeout = discord.utils.utcnow() + timedelta(hours=24)
@@ -739,6 +963,15 @@ async def giverole(ctx, role_name: str):
         await ctx.send("Could not find the user")
         return
     
+    # Проверка иммунитета
+    if has_immunity(member):
+        embed = discord.Embed(
+            description=f"{member.mention} has immunity from role changes.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
     role_name_lower = role_name.lower()
     if role_name_lower not in role_map:
         available_roles = ', '.join(role_map.keys())
@@ -776,6 +1009,15 @@ async def delrole(ctx, role_name: str):
         member = referenced_msg.author
     except:
         await ctx.send("Could not find the user")
+        return
+    
+    # Проверка иммунитета
+    if has_immunity(member):
+        embed = discord.Embed(
+            description=f"{member.mention} has immunity from role changes.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
         return
     
     role_name_lower = role_name.lower()
@@ -1004,6 +1246,15 @@ async def hardban(ctx, member: discord.Member = None, *, reason="Not specified")
         member = referenced.author
     if member is None:
         await ctx.send("Usage: .hardban (@user) (reason) or reply to a message with .hardban")
+        return
+    
+    # Проверка иммунитета
+    if has_immunity(member):
+        embed = discord.Embed(
+            description=f"{member.mention} has immunity from punishments.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
         return
     
     try:
