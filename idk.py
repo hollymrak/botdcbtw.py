@@ -72,17 +72,6 @@ VOICE_CHANNELS_TO_LOCK = [
     1513692585682669618
 ]
 
-GREETINGS = [
-    "Hello! How can I help you today?",
-    "Hey there! What's up?",
-    "Hi! Nice to see you!",
-    "Greetings! How's it going?",
-    "Hey! What can I do for you?",
-    "Hello! Need any help?",
-    "Hi there! How are you doing?",
-    "Hey! I'm here for you!"
-]
-
 STAFF_ROLES = [
     1508782838600830996,
     1504503460740202567,
@@ -933,45 +922,51 @@ async def undetected(ctx, game: str = None):
 
 @bot.command()
 async def help_commands(ctx):
-    embed = discord.Embed(
-        title="Bot Commands",
+    embed1 = discord.Embed(
+        title="Bot Commands (1/2)",
         description="Commands require the admin role to use",
         color=discord.Color.from_rgb(255, 255, 255)
     )
-    embed.add_field(name=".clear (amount)", value="Delete messages in the channel (max 1000)", inline=False)
-    embed.add_field(name=".ban (@user) (reason)", value="Ban a user permanently", inline=False)
-    embed.add_field(name=".unban (user)", value="Unban a user", inline=False)
-    embed.add_field(name=".mute (@user) (reason)", value="Mute a user for 24 hours", inline=False)
-    embed.add_field(name=".unmute (@user)", value="Unmute a user", inline=False)
-    embed.add_field(name=".warn (@user) (reason)", value="Give a warning to a user", inline=False)
-    embed.add_field(name=".warn-remove (@user) (code)", value="Remove a warning from user", inline=False)
-    embed.add_field(name=".warns-list (@user)", value="Show all warnings of a user", inline=False)
-    embed.add_field(name=".hardban (@user) (reason)", value="Hard ban a user (remove all channel access)", inline=False)
-    embed.add_field(name=".unhardban (user)", value="Remove hard ban from a user", inline=False)
-    embed.add_field(name=".jail (@user) (reason)", value="Jail a user", inline=False)
-    embed.add_field(name=".unjail (@user)", value="Unjail a user", inline=False)
-    embed.add_field(name=".kick (@user) (reason)", value="Kick a user", inline=False)
-    embed.add_field(name=".join", value="Connect bot to voice channel", inline=False)
-    embed.add_field(name=".unjoin", value="Disconnect bot from voice channel", inline=False)
-    embed.add_field(name=".lockchats", value="Lock all specified channels", inline=False)
-    embed.add_field(name=".unlockchats", value="Unlock all specified channels", inline=False)
-    embed.add_field(name=".verifyall", value="Verifies all people with unverified role", inline=False)
-    embed.add_field(name=".stopverify", value="Stop verification process", inline=False)
-    embed.add_field(name=".giverole (role_name)", value="Give a role to replied user", inline=False)
-    embed.add_field(name=".delrole (role_name)", value="Remove a role from replied user", inline=False)
-    embed.add_field(name=".down (InkGame / MurderMystery2 / Doors)", value="Mark selected script as down.", inline=False)
-    embed.add_field(name=".down ALL", value="Mark all scripts as down.", inline=False)
-    embed.add_field(name=".undetected (InkGame / MurderMystery2 / Doors)", value="Mark selected script as undetected.", inline=False)
-    embed.add_field(name=".undetected ALL", value="Mark all scripts as undetected.", inline=False)
-    embed.add_field(name=".showstafflist", value="Show all staff members", inline=False)
-    embed.add_field(name=".moderatorshelp", value="Show staff permissions", inline=False)
-    embed.add_field(name=".invite", value="Send invite to Discord server", inline=False)
-    embed.add_field(name=".help_commands", value="Show this help message", inline=False)
+    embed1.add_field(name=".clear (amount)", value="Delete messages in the channel (max 1000)", inline=False)
+    embed1.add_field(name=".ban (@user) (reason)", value="Ban a user permanently", inline=False)
+    embed1.add_field(name=".unban (user)", value="Unban a user", inline=False)
+    embed1.add_field(name=".mute (@user) (reason)", value="Mute a user for 24 hours", inline=False)
+    embed1.add_field(name=".unmute (@user)", value="Unmute a user", inline=False)
+    embed1.add_field(name=".warn (@user) (reason)", value="Give a warning to a user", inline=False)
+    embed1.add_field(name=".warn-remove (@user) (code)", value="Remove a warning from user", inline=False)
+    embed1.add_field(name=".warns-list (@user)", value="Show all warnings of a user", inline=False)
+    embed1.add_field(name=".hardban (@user) (reason)", value="Hard ban a user (remove all channel access)", inline=False)
+    embed1.add_field(name=".unhardban (user)", value="Remove hard ban from a user", inline=False)
+    embed1.add_field(name=".jail (@user) (reason)", value="Jail a user", inline=False)
+    embed1.add_field(name=".unjail (@user)", value="Unjail a user", inline=False)
+    embed1.add_field(name=".kick (@user) (reason)", value="Kick a user", inline=False)
+    embed1.add_field(name=".join", value="Connect bot to voice channel", inline=False)
+    embed1.add_field(name=".unjoin", value="Disconnect bot from voice channel", inline=False)
+    embed1.add_field(name=".lockchats", value="Lock all specified channels", inline=False)
+    
+    embed2 = discord.Embed(
+        title="Bot Commands (2/2)",
+        color=discord.Color.from_rgb(255, 255, 255)
+    )
+    embed2.add_field(name=".unlockchats", value="Unlock all specified channels", inline=False)
+    embed2.add_field(name=".verifyall", value="Verifies all people with unverified role", inline=False)
+    embed2.add_field(name=".stopverify", value="Stop verification process", inline=False)
+    embed2.add_field(name=".giverole (role_name)", value="Give a role to replied user", inline=False)
+    embed2.add_field(name=".delrole (role_name)", value="Remove a role from replied user", inline=False)
+    embed2.add_field(name=".down (InkGame / MurderMystery2 / Doors)", value="Mark selected script as down.", inline=False)
+    embed2.add_field(name=".down ALL", value="Mark all scripts as down.", inline=False)
+    embed2.add_field(name=".undetected (InkGame / MurderMystery2 / Doors)", value="Mark selected script as undetected.", inline=False)
+    embed2.add_field(name=".undetected ALL", value="Mark all scripts as undetected.", inline=False)
+    embed2.add_field(name=".showstafflist", value="Show all staff members", inline=False)
+    embed2.add_field(name=".moderatorshelp", value="Show staff permissions", inline=False)
+    embed2.add_field(name=".invite", value="Send invite to Discord server", inline=False)
+    embed2.add_field(name=".help_commands", value="Show this help message", inline=False)
     
     available_roles = ', '.join(role_map.keys())
-    embed.add_field(name="Available Roles", value=available_roles, inline=False)
+    embed2.add_field(name="Available Roles", value=available_roles, inline=False)
     
-    await ctx.send(embed=embed)
+    await ctx.send(embed=embed1)
+    await ctx.send(embed=embed2)
 
 @bot.command()
 @commands.has_role(ADMIN_ROLE_ID)
