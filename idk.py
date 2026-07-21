@@ -377,12 +377,22 @@ async def warn(ctx, member: discord.Member = None, *, args=None):
     reason = args or "No reason provided"
     await warn_user(member, reason, ctx.author.mention)
 
-@bot.command()
-@commands.has_role(1504503460740202567)
+
+@bot.command(name="warn-remove", aliases=["warnremove"])
 async def warn_remove(ctx, member: discord.Member = None, code: str = None):
+    # Проверка прав (как для админа, так и для роли модератора)
+    if not (has_permission(ctx) or any(role.id == 1504503460740202567 for role in ctx.author.roles)):
+        embed = discord.Embed(
+            description="You don't have permissions.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+
     if member is None and ctx.message.reference:
         referenced = await ctx.channel.fetch_message(ctx.message.reference.message_id)
         member = referenced.author
+
     if member is None or code is None:
         embed = discord.Embed(
             description="Usage: .warn-remove @user #1234",
@@ -391,7 +401,7 @@ async def warn_remove(ctx, member: discord.Member = None, code: str = None):
         await ctx.send(embed=embed)
         return
     
-    if member.id not in warnings:
+    if member.id not in warnings or not warnings[member.id]:
         embed = discord.Embed(
             description=f"{member.mention} has no warnings.",
             color=discord.Color.from_rgb(255, 200, 0)
@@ -400,10 +410,10 @@ async def warn_remove(ctx, member: discord.Member = None, code: str = None):
         return
     
     removed = False
-    for warn in warnings[member.id]:
+    for warn in list(warnings[member.id]):
         if warn['code'] == code:
             warnings[member.id].remove(warn)
-            user_warnings[member.id] -= 1
+            user_warnings[member.id] = max(0, user_warnings[member.id] - 1)
             removed = True
             embed = discord.Embed(
                 description=f"Removed warning {code} from {member.mention}",
@@ -419,19 +429,24 @@ async def warn_remove(ctx, member: discord.Member = None, code: str = None):
         )
         await ctx.send(embed=embed)
 
-@bot.command()
-@commands.has_role(1504503460740202567)
-async def warns_list(ctx, member: discord.Member = None):
-    if member is None and ctx.message.reference:
-        referenced = await ctx.channel.fetch_message(ctx.message.reference.message_id)
-        member = referenced.author
-    if member is None:
+
+@bot.command(name="warn-list", aliases=["warns-list", "warnlist", "warnslist"])
+async def warn_list(ctx, member: discord.Member = None):
+    # Проверка прав (как для админа, так и для роли модератора)
+    if not (has_permission(ctx) or any(role.id == 1504503460740202567 for role in ctx.author.roles)):
         embed = discord.Embed(
-            description="Usage: .warns-list @user",
+            description="You don't have permissions.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
         return
+
+    if member is None and ctx.message.reference:
+        referenced = await ctx.channel.fetch_message(ctx.message.reference.message_id)
+        member = referenced.author
+
+    if member is None:
+        member = ctx.author  # Если не указан юзер, показывает варны того, кто вызвал команду
     
     if member.id not in warnings or not warnings[member.id]:
         embed = discord.Embed(
@@ -817,8 +832,8 @@ this channel is maded to show your Permissions. ( USING OTHER BOTS FOR STAFF COM
 <@&1504503460740202567>
 - Access to .jail
 - Access to .warn
-- Access to .warn-remove
-- Access to .warns-list
+- Access to .warn_remove
+- Access to .warns_list
 - Access to audit logs.
 
 # Commands tooltips:
