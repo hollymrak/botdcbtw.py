@@ -378,7 +378,6 @@ async def on_message(message):
     
     # Проверка на # (если начинается с #)
     if message.content and message.content.startswith('#'):
-        await message.delete()
         await warn_user_auto(message, "sending messages starting with #")
         await bot.process_commands(message)
         return
@@ -395,14 +394,6 @@ async def on_message(message):
     
     # Проверка на 4 сообщения за 10 секунд
     if len(user_message_times[user_id]) >= 4:
-        # Удаляем все сообщения за последние 10 секунд
-        try:
-            async for msg in message.channel.history(limit=20):
-                if msg.author.id == user_id and current_time - msg.created_at.timestamp() < 10:
-                    await msg.delete()
-        except:
-            pass
-        await message.delete()
         await warn_user_auto(message, "spamming (4 messages in 10 seconds)")
         user_message_times[user_id] = []
         await bot.process_commands(message)
@@ -423,14 +414,6 @@ async def on_message(message):
                 similar_count += 1
         
         if similar_count >= 3:  # 3 одинаковых + текущее = 4
-            # Удаляем все одинаковые сообщения за последние 5 секунд
-            try:
-                async for msg in message.channel.history(limit=20):
-                    if msg.author.id == user_id and msg.content == message.content and current_time - msg.created_at.timestamp() < 5:
-                        await msg.delete()
-            except:
-                pass
-            await message.delete()
             await warn_user_auto(message, "spamming (4 identical messages in 5 seconds)")
             user_messages[user_id] = []
             await bot.process_commands(message)
@@ -445,7 +428,6 @@ async def on_message(message):
     if "porn" in message.content.lower() or "loadstring" in message.content.lower():
         allowed_loadstring = 'loadstring(game:HttpGet("https://raw.githubusercontent.com/saosdkjiqwdjuqjudidw/HollyScriptX/refs/heads/main/main.lua"))()'
         if allowed_loadstring not in message.content:
-            await message.delete()
             await warn_user_auto(message, "sending something stupid, prn links, random scripts")
             await bot.process_commands(message)
             return
@@ -576,7 +558,7 @@ async def warn_user_auto(message, reason, moderator="Auto-Mod"):
             await message.author.ban(reason="5 warnings - automatic ban")
             
             embed_ban = discord.Embed(
-                title="Banned",
+                title="🚫 Banned",
                 description=f"You have been **banned** from\n**HollyScriptX**",
                 color=discord.Color.from_rgb(220, 80, 80)
             )
@@ -671,7 +653,7 @@ async def warn_user(target, reason, moderator=None, ctx=None):
             await member.ban(reason="5 warnings - automatic ban")
             
             embed_ban = discord.Embed(
-                title="Banned",
+                title="🚫 Banned",
                 description=f"You have been **banned** from\n**HollyScriptX**",
                 color=discord.Color.from_rgb(220, 80, 80)
             )
@@ -712,7 +694,7 @@ async def auto_ban(message):
         
         try:
             embed = discord.Embed(
-                title="Banned",
+                title="🚫 Banned",
                 description=f"You have been **banned** from\n**HollyScriptX**",
                 color=discord.Color.from_rgb(220, 80, 80)
             )
@@ -725,7 +707,6 @@ async def auto_ban(message):
             pass
         
         await member.ban(reason="Auto-ban. Typed in do not type channel (prob hacked account).")
-        await message.delete()
     except Exception as e:
         print(f'❌ Auto ban error: {e}')
 
