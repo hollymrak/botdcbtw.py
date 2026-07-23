@@ -10,6 +10,7 @@ import asyncio
 import random
 import string
 import json
+import traceback
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 SERVER_ID = 1504482964661076098
@@ -217,22 +218,26 @@ def save_warnings():
         for key, value in warnings.items():
             warnings_dict[str(key)] = value
         with open('warnings.json', 'w') as f:
-            json.dump(warnings_dict, f)
+            json.dump(warnings_dict, f, indent=4)
+        print(f"✅ Warnings saved: {len(warnings_dict)} users")
     except Exception as e:
-        print(f"Error saving warnings: {e}")
+        print(f"❌ Error saving warnings: {e}")
 
 def load_warnings():
     global warnings, user_warnings
     try:
-        with open('warnings.json', 'r') as f:
-            data = json.load(f)
-            for user_id, warns in data.items():
-                warnings[int(user_id)] = warns
-                user_warnings[int(user_id)] = len(warns)
-    except FileNotFoundError:
-        pass
+        if os.path.exists('warnings.json'):
+            with open('warnings.json', 'r') as f:
+                data = json.load(f)
+                for user_id, warns in data.items():
+                    warnings[int(user_id)] = warns
+                    user_warnings[int(user_id)] = len(warns)
+            print(f"✅ Loaded warnings for {len(data)} users")
+        else:
+            print("ℹ️ No warnings file found, starting fresh")
     except Exception as e:
-        print(f"Error loading warnings: {e}")
+        print(f"❌ Error loading warnings: {e}")
+        print(traceback.format_exc())
 
 # Кнопка для удаления тикета
 class DeleteTicketButton(Button):
@@ -323,7 +328,7 @@ class TicketView(View):
 @bot.event
 async def on_ready():
     global banned_count, verify_message_id, verify_channel_id
-    print(f'Bot {bot.user} is online')
+    print(f'✅ Bot {bot.user} is online')
     await bot.change_presence(status=discord.Status.dnd, activity=discord.Game(name="discord.gg/hsx"))
     
     load_warnings()
@@ -335,8 +340,9 @@ async def on_ready():
                 if message.author == bot.user:
                     continue
                 banned_count += 1
-        except:
-            pass
+            print(f"✅ Banned count: {banned_count}")
+        except Exception as e:
+            print(f"❌ Error counting bans: {e}")
     
     guild = bot.get_guild(SERVER_ID)
     if guild:
@@ -346,7 +352,7 @@ async def on_ready():
                 if message.author == bot.user and message.embeds:
                     verify_message_id = message.id
                     verify_channel_id = message.channel.id
-                    print(f'Verification message restored: {verify_message_id}')
+                    print(f'✅ Verification message restored: {verify_message_id}')
                     break
 
 @bot.event
@@ -389,6 +395,13 @@ async def on_message(message):
     
     # Проверка на 4 сообщения за 10 секунд
     if len(user_message_times[user_id]) >= 4:
+        # Удаляем все сообщения за последние 10 секунд
+        try:
+            async for msg in message.channel.history(limit=20):
+                if msg.author.id == user_id and current_time - msg.created_at.timestamp() < 10:
+                    await msg.delete()
+        except:
+            pass
         await message.delete()
         await warn_user_auto(message, "spamming (4 messages in 10 seconds)")
         user_message_times[user_id] = []
@@ -410,6 +423,13 @@ async def on_message(message):
                 similar_count += 1
         
         if similar_count >= 3:  # 3 одинаковых + текущее = 4
+            # Удаляем все одинаковые сообщения за последние 5 секунд
+            try:
+                async for msg in message.channel.history(limit=20):
+                    if msg.author.id == user_id and msg.content == message.content and current_time - msg.created_at.timestamp() < 5:
+                        await msg.delete()
+            except:
+                pass
             await message.delete()
             await warn_user_auto(message, "spamming (4 identical messages in 5 seconds)")
             user_messages[user_id] = []
@@ -497,15 +517,17 @@ async def on_raw_reaction_add(payload):
             )
             await log_channel.send(embed=embed)
     except Exception as e:
-        print(f'Verify error: {e}')
+        print(f'❌ Verify error: {e}')
 
 async def warn_user_auto(message, reason, moderator="Auto-Mod"):
     # Check if user has admin perms
     if message.author.guild_permissions.administrator:
+        print(f"⚠️ {message.author} is admin, skipping warn")
         return
     
     # Check immunity
     if has_immunity(message.author):
+        print(f"⚠️ {message.author} has immunity, skipping warn")
         return
     
     warn_code = generate_warn_code()
@@ -524,27 +546,30 @@ async def warn_user_auto(message, reason, moderator="Auto-Mod"):
     
     save_warnings()
     
-    embed = discord.Embed(
-        title="Warned",
-        description=f"You have been warned in\n**HollyScriptX**",
-        color=discord.Color.from_rgb(255, 180, 50)
-    )
-    embed.add_field(name="Moderator", value=moderator, inline=False)
-    embed.add_field(name="Reason", value=reason, inline=False)
-    embed.add_field(name="Warning", value=f"{warn_count}/5", inline=False)
-    embed.add_field(name="Code", value=warn_code, inline=False)
-    embed.set_footer(text=f"{datetime.now().strftime('%m/%d/%Y %I:%M %p')}")
-    
+    # Отправляем в ЛС
     try:
-        await message.author.send(embed=embed)
-    except:
-        pass
+        embed_dm = discord.Embed(
+            title="⚠️ Warned",
+            description=f"You have been warned in\n**HollyScriptX**",
+            color=discord.Color.from_rgb(255, 180, 50)
+        )
+        embed_dm.add_field(name="Moderator", value=moderator, inline=False)
+        embed_dm.add_field(name="Reason", value=reason, inline=False)
+        embed_dm.add_field(name="Warning", value=f"{warn_count}/5", inline=False)
+        embed_dm.add_field(name="Code", value=warn_code, inline=False)
+        embed_dm.set_footer(text=f"{datetime.now().strftime('%m/%d/%Y %I:%M %p')}")
+        await message.author.send(embed=embed_dm)
+        print(f"✅ Sent DM warn to {message.author}")
+    except Exception as e:
+        print(f"❌ Could not send DM to {message.author}: {e}")
     
+    # Отправляем в канал
     embed_channel = discord.Embed(
-        description=f"{message.author.mention} you have been warned for {reason} #{warn_count}/5\nCode: {warn_code}",
+        description=f"⚠️ {message.author.mention} you have been warned for **{reason}** #{warn_count}/5\nCode: {warn_code}",
         color=discord.Color.from_rgb(220, 80, 80)
     )
     await message.channel.send(embed=embed_channel)
+    print(f"✅ Sent channel warn for {message.author}")
     
     if warn_count >= 5:
         try:
@@ -566,12 +591,13 @@ async def warn_user_auto(message, reason, moderator="Auto-Mod"):
                 pass
             
             embed_channel_ban = discord.Embed(
-                description=f"{message.author.mention} has been banned for violating rules. #5/5",
+                description=f"🚫 {message.author.mention} has been banned for violating rules. #5/5",
                 color=discord.Color.from_rgb(220, 80, 80)
             )
             await message.channel.send(embed=embed_channel_ban)
+            print(f"✅ Auto-banned {message.author} for 5 warnings")
         except Exception as e:
-            print(f'Ban error: {e}')
+            print(f'❌ Ban error: {e}')
     
     return warn_code
 
@@ -586,7 +612,7 @@ async def warn_user(target, reason, moderator=None, ctx=None):
     if has_immunity(member):
         if channel:
             embed = discord.Embed(
-                description=f"{member.mention} has immunity from punishments.",
+                description=f"❌ {member.mention} has immunity from punishments.",
                 color=discord.Color.from_rgb(255, 200, 0)
             )
             await channel.send(embed=embed)
@@ -595,7 +621,7 @@ async def warn_user(target, reason, moderator=None, ctx=None):
     if member.guild_permissions.administrator:
         if channel:
             embed = discord.Embed(
-                description=f"{member.mention} has administrator permissions and cannot be warned.",
+                description=f"❌ {member.mention} has administrator permissions and cannot be warned.",
                 color=discord.Color.from_rgb(255, 200, 0)
             )
             await channel.send(embed=embed)
@@ -618,7 +644,7 @@ async def warn_user(target, reason, moderator=None, ctx=None):
     save_warnings()
     
     embed = discord.Embed(
-        title="Warned",
+        title="⚠️ Warned",
         description=f"You have been warned in\n**HollyScriptX**",
         color=discord.Color.from_rgb(255, 180, 50)
     )
@@ -635,7 +661,7 @@ async def warn_user(target, reason, moderator=None, ctx=None):
     
     if channel:
         embed_channel = discord.Embed(
-            description=f"{member.mention} has been warned for {reason} #{warn_count}/5\nCode: {warn_code}",
+            description=f"⚠️ {member.mention} has been warned for **{reason}** #{warn_count}/5\nCode: {warn_code}",
             color=discord.Color.from_rgb(255, 180, 50)
         )
         await channel.send(embed=embed_channel)
@@ -661,12 +687,12 @@ async def warn_user(target, reason, moderator=None, ctx=None):
             
             if channel:
                 embed_channel_ban = discord.Embed(
-                    description=f"{member.mention} has been banned for violating rules. #5/5",
+                    description=f"🚫 {member.mention} has been banned for violating rules. #5/5",
                     color=discord.Color.from_rgb(220, 80, 80)
                 )
                 await channel.send(embed=embed_channel_ban)
         except Exception as e:
-            print(f'Ban error: {e}')
+            print(f'❌ Ban error: {e}')
     
     return warn_code
 
@@ -679,7 +705,7 @@ async def auto_ban(message):
         log_channel = bot.get_channel(1518832499122507786)
         if log_channel:
             embed = discord.Embed(
-                description=f"{member.mention} has been permanently **banned** from **HollyScriptX**\nReason: **Scammed Accounts detection 1.0**\nTyped Message:\n{message.content}",
+                description=f"🚫 {member.mention} has been permanently **banned** from **HollyScriptX**\nReason: **Scammed Accounts detection 1.0**\nTyped Message:\n{message.content}",
                 color=discord.Color.from_rgb(220, 80, 80)
             )
             await log_channel.send(embed=embed)
@@ -701,7 +727,7 @@ async def auto_ban(message):
         await member.ban(reason="Auto-ban. Typed in do not type channel (prob hacked account).")
         await message.delete()
     except Exception as e:
-        print(f'Auto ban error: {e}')
+        print(f'❌ Auto ban error: {e}')
 
 @bot.event
 async def on_command_error(ctx, error):
@@ -742,7 +768,8 @@ async def on_command_error(ctx, error):
         )
         await ctx.send(embed=embed)
     else:
-        print(f"Error: {error}")
+        print(f"❌ Error: {error}")
+        print(traceback.format_exc())
         embed = discord.Embed(
             description=f"❌ An error occurred: {error}",
             color=discord.Color.from_rgb(255, 200, 0)
@@ -882,7 +909,7 @@ async def warn_list(ctx, member: discord.Member = None):
         return
     
     embed = discord.Embed(
-        title=f"Warnings for {member.display_name}",
+        title=f"⚠️ Warnings for {member.display_name}",
         color=discord.Color.from_rgb(255, 180, 50)
     )
     
@@ -963,7 +990,7 @@ async def jail(ctx, member: discord.Member = None, *, reason="No reason provided
         pass
     
     embed = discord.Embed(
-        title="Jailed",
+        title="🔒 Jailed",
         description=f"You have been jailed in\n**HollyScriptX**",
         color=discord.Color.from_rgb(220, 80, 80)
     )
@@ -978,7 +1005,7 @@ async def jail(ctx, member: discord.Member = None, *, reason="No reason provided
         pass
     
     embed_channel = discord.Embed(
-        description=f"{member.mention} has been jailed. Reason: {reason}",
+        description=f"🔒 {member.mention} has been jailed. Reason: {reason}",
         color=discord.Color.from_rgb(220, 80, 80)
     )
     await ctx.send(embed=embed_channel)
@@ -1011,7 +1038,7 @@ async def unjail(ctx, member: discord.Member = None):
         del user_roles_backup[member.id]
     
     embed = discord.Embed(
-        description=f"{member.mention} has been unjailed!",
+        description=f"✅ {member.mention} has been unjailed!",
         color=discord.Color.from_rgb(100, 220, 100)
     )
     await ctx.send(embed=embed)
@@ -1053,7 +1080,7 @@ async def kick(ctx, member: discord.Member = None, *, reason="No reason provided
     try:
         await member.kick(reason=reason)
         embed = discord.Embed(
-            description=f"{member.mention} has been kicked. Reason: {reason}",
+            description=f"👢 {member.mention} has been kicked. Reason: {reason}",
             color=discord.Color.from_rgb(220, 80, 80)
         )
         await ctx.send(embed=embed)
@@ -1114,7 +1141,7 @@ async def ban(ctx, member: discord.Member = None, *, reason="No Reason Provided"
         await member.ban(reason=reason)
         
         embed = discord.Embed(
-            title="Banned",
+            title="🚫 Banned",
             description=f"You have been **banned** from\n**HollyScriptX**",
             color=discord.Color.from_rgb(220, 80, 80)
         )
@@ -1236,7 +1263,7 @@ async def mute(ctx, member: discord.Member = None, duration: str = None, *, reas
         await member.timeout(timeout, reason=reason)
         
         embed = discord.Embed(
-            title="Muted",
+            title="🔇 Muted",
             description=f"You have been **muted** in\n**HollyScriptX**",
             color=discord.Color.from_rgb(255, 180, 50)
         )
@@ -1316,7 +1343,7 @@ async def giverole(ctx, role_name: str = None):
     
     if role_name is None:
         embed = discord.Embed(
-            description="❌ Usage: .giverole (role_name)\nExample: .giverole helper\nAvailable roles: " + ", ".join(role_map.keys()),
+            description=f"❌ Usage: .giverole (role_name)\nExample: .giverole helper\nAvailable roles: {', '.join(role_map.keys())}",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1349,11 +1376,10 @@ async def giverole(ctx, role_name: str = None):
         await ctx.send(embed=embed)
         return
     
-    # Проверяем существование роли
     role_name_lower = role_name.lower()
     if role_name_lower not in role_map:
         embed = discord.Embed(
-            description=f"❌ Role '{role_name}' not found!\nAvailable roles: " + ", ".join(role_map.keys()),
+            description=f"❌ Role '{role_name}' not found!\nAvailable roles: {', '.join(role_map.keys())}",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1422,7 +1448,7 @@ async def delrole(ctx, role_name: str = None):
     
     if role_name is None:
         embed = discord.Embed(
-            description="❌ Usage: .delrole (role_name)\nExample: .delrole helper\nAvailable roles: " + ", ".join(role_map.keys()),
+            description=f"❌ Usage: .delrole (role_name)\nExample: .delrole helper\nAvailable roles: {', '.join(role_map.keys())}",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1447,11 +1473,10 @@ async def delrole(ctx, role_name: str = None):
         await ctx.send(embed=embed)
         return
     
-    # Проверяем существование роли
     role_name_lower = role_name.lower()
     if role_name_lower not in role_map:
         embed = discord.Embed(
-            description=f"❌ Role '{role_name}' not found!\nAvailable roles: " + ", ".join(role_map.keys()),
+            description=f"❌ Role '{role_name}' not found!\nAvailable roles: {', '.join(role_map.keys())}",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1644,14 +1669,14 @@ async def down(ctx, game: str = None):
         try:
             await channel.edit(name=new_name)
             embed = discord.Embed(
-                description=f"{game} marked as down.",
+                description=f"🔴 {game} marked as down.",
                 color=discord.Color.from_rgb(220, 80, 80)
             )
             await ctx.send(embed=embed)
         except Exception as e:
-            await ctx.send(f"Error changing channel name: {e}")
+            await ctx.send(f"❌ Error changing channel name: {e}")
     else:
-        await ctx.send("Channel not found")
+        await ctx.send("❌ Channel not found")
 
 @bot.command()
 @commands.has_role(ADMIN_ROLE_ID)
@@ -1687,19 +1712,19 @@ async def undetected(ctx, game: str = None):
         try:
             await channel.edit(name=new_name)
             embed = discord.Embed(
-                description=f"{game} marked as undetected.",
+                description=f"🟢 {game} marked as undetected.",
                 color=discord.Color.from_rgb(100, 220, 100)
             )
             await ctx.send(embed=embed)
         except Exception as e:
-            await ctx.send(f"Error changing channel name: {e}")
+            await ctx.send(f"❌ Error changing channel name: {e}")
     else:
-        await ctx.send("Channel not found")
+        await ctx.send("❌ Channel not found")
 
 @bot.command()
 async def help_commands(ctx):
     embed1 = discord.Embed(
-        title="Bot Commands (1/3)",
+        title="🤖 Bot Commands (1/3)",
         description="Commands require the admin role to use",
         color=discord.Color.from_rgb(255, 255, 255)
     )
@@ -1721,7 +1746,7 @@ async def help_commands(ctx):
     embed1.add_field(name=".lockchats", value="Lock all specified channels", inline=False)
     
     embed2 = discord.Embed(
-        title="Bot Commands (2/3)",
+        title="🤖 Bot Commands (2/3)",
         color=discord.Color.from_rgb(255, 255, 255)
     )
     embed2.add_field(name=".unlockchats", value="Unlock all specified channels", inline=False)
@@ -1741,7 +1766,7 @@ async def help_commands(ctx):
     embed2.add_field(name=".ticketcreatestaff", value="Create staff ticket system", inline=False)
     
     embed3 = discord.Embed(
-        title="Bot Commands (3/3)",
+        title="🤖 Bot Commands (3/3)",
         color=discord.Color.from_rgb(255, 255, 255)
     )
     embed3.add_field(name=".showstafflist", value="Show all staff members", inline=False)
@@ -1760,13 +1785,13 @@ async def help_commands(ctx):
 @commands.has_role(ADMIN_ROLE_ID)
 async def clear(ctx, amount: int):
     if amount <= 0:
-        await ctx.send("Please specify a positive number")
+        await ctx.send("❌ Please specify a positive number")
         return
     if amount > 1000:
-        await ctx.send("Cannot delete more than 1000 messages at once")
+        await ctx.send("❌ Cannot delete more than 1000 messages at once")
         return
     deleted = await ctx.channel.purge(limit=amount + 1)
-    msg = await ctx.send(f"Deleted {len(deleted) - 1} messages")
+    msg = await ctx.send(f"🗑️ Deleted {len(deleted) - 1} messages")
     await msg.delete(delay=3)
 
 @bot.command()
@@ -1813,7 +1838,7 @@ async def hardban(ctx, member: discord.Member = None, *, reason="Not specified")
                 pass
         
         embed = discord.Embed(
-            title="Hard Banned",
+            title="🚫 Hard Banned",
             description=f"You have been **hard-banned** from\n**HollyScriptX**",
             color=discord.Color.from_rgb(220, 80, 80)
         )
@@ -1828,7 +1853,7 @@ async def hardban(ctx, member: discord.Member = None, *, reason="Not specified")
             pass
         
         embed_channel = discord.Embed(
-            description=f"{member.mention} **has been hard-banned!**",
+            description=f"🚫 {member.mention} **has been hard-banned!**",
             color=discord.Color.from_rgb(220, 80, 80)
         )
         embed_channel.add_field(name="Reason", value=reason, inline=False)
@@ -2116,6 +2141,6 @@ async def setstatus(ctx, status: str = None, *, game: str = None):
 
 if __name__ == "__main__":
     if TOKEN is None:
-        print("ERROR: DISCORD_TOKEN environment variable is not set!")
+        print("❌ ERROR: DISCORD_TOKEN environment variable is not set!")
     else:
         bot.run(TOKEN)
