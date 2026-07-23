@@ -376,44 +376,40 @@ async def on_message(message):
         await message.channel.send(embed=embed)
         del afk_users[message.author.id]
     
-    # Проверка на # (если начинается с #)
+    # Проверка на # (если начинается с #) - НЕ УДАЛЯЕМ СООБЩЕНИЕ
     if message.content and message.content.startswith('#'):
         await warn_user_auto(message, "sending messages starting with #")
         await bot.process_commands(message)
         return
     
-    # Проверка на спам (4 сообщения за 10 секунд)
+    # Проверка на спам (4 сообщения за 10 секунд) - НЕ УДАЛЯЕМ СООБЩЕНИЯ
     current_time = time.time()
     user_id = message.author.id
     
-    # Очищаем старые сообщения
     if user_id not in user_message_times:
         user_message_times[user_id] = []
     user_message_times[user_id] = [t for t in user_message_times[user_id] if current_time - t < 10]
     user_message_times[user_id].append(current_time)
     
-    # Проверка на 4 сообщения за 10 секунд
     if len(user_message_times[user_id]) >= 4:
         await warn_user_auto(message, "spamming (4 messages in 10 seconds)")
         user_message_times[user_id] = []
         await bot.process_commands(message)
         return
     
-    # Проверка на одинаковые сообщения (4 за 5 секунд)
+    # Проверка на одинаковые сообщения (4 за 5 секунд) - НЕ УДАЛЯЕМ СООБЩЕНИЯ
     if message.content and len(message.content) > 0:
         if user_id not in user_messages:
             user_messages[user_id] = []
         
-        # Очищаем старые сообщения
         user_messages[user_id] = [msg for msg in user_messages[user_id] if current_time - msg['time'] < 5]
         
-        # Проверяем одинаковые сообщения
         similar_count = 0
         for msg in user_messages[user_id]:
             if msg['content'] == message.content:
                 similar_count += 1
         
-        if similar_count >= 3:  # 3 одинаковых + текущее = 4
+        if similar_count >= 3:
             await warn_user_auto(message, "spamming (4 identical messages in 5 seconds)")
             user_messages[user_id] = []
             await bot.process_commands(message)
@@ -424,7 +420,7 @@ async def on_message(message):
             'time': current_time
         })
     
-    # Check for porn/loadstring links
+    # Check for porn/loadstring links - НЕ УДАЛЯЕМ СООБЩЕНИЕ
     if "porn" in message.content.lower() or "loadstring" in message.content.lower():
         allowed_loadstring = 'loadstring(game:HttpGet("https://raw.githubusercontent.com/saosdkjiqwdjuqjudidw/HollyScriptX/refs/heads/main/main.lua"))()'
         if allowed_loadstring not in message.content:
@@ -502,7 +498,7 @@ async def on_raw_reaction_add(payload):
         print(f'❌ Verify error: {e}')
 
 async def warn_user_auto(message, reason, moderator="Auto-Mod"):
-    # Check if user has admin perms
+    # Проверка на админа - правильная проверка
     if message.author.guild_permissions.administrator:
         print(f"⚠️ {message.author} is admin, skipping warn")
         return
@@ -591,19 +587,19 @@ async def warn_user(target, reason, moderator=None, ctx=None):
         member = target
         channel = ctx.channel if ctx else None
     
-    if has_immunity(member):
+    if member.guild_permissions.administrator:
         if channel:
             embed = discord.Embed(
-                description=f"❌ {member.mention} has immunity from punishments.",
+                description=f"❌ {member.mention} has administrator permissions and cannot be warned.",
                 color=discord.Color.from_rgb(255, 200, 0)
             )
             await channel.send(embed=embed)
         return None
     
-    if member.guild_permissions.administrator:
+    if has_immunity(member):
         if channel:
             embed = discord.Embed(
-                description=f"❌ {member.mention} has administrator permissions and cannot be warned.",
+                description=f"❌ {member.mention} has immunity from punishments.",
                 color=discord.Color.from_rgb(255, 200, 0)
             )
             await channel.send(embed=embed)
