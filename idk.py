@@ -240,7 +240,6 @@ class DeleteTicketButton(Button):
         super().__init__(label="🗑️ Delete Ticket", style=discord.ButtonStyle.danger)
     
     async def callback(self, interaction: discord.Interaction):
-        # Проверка прав (админ или создатель тикета)
         if not interaction.user.guild_permissions.administrator:
             embed = discord.Embed(
                 description="You don't have permission to delete this ticket!",
@@ -275,7 +274,6 @@ class TicketView(View):
             await interaction.followup.send("Ticket category not found!", ephemeral=True)
             return
         
-        # Create ticket channel
         ticket_id = ''.join(random.choices(string.digits, k=3))
         channel_name = f"ticket-{ticket_id}"
         
@@ -284,7 +282,6 @@ class TicketView(View):
             interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True, attach_files=True, embed_links=True)
         }
         
-        # Add staff roles
         for role_id in ALL_STAFF_ROLES:
             role = interaction.guild.get_role(role_id)
             if role:
@@ -309,7 +306,7 @@ class TicketView(View):
             embed.description += f'\n\nThis is ur ticket. "I want to be a new dev". Explain ur experience with lua coding below. Show screenshots/videos of your work to get admins respond faster.'
             mention = " ".join([f"<@&{role_id}>" for role_id in [1504502759922077776, 1504502883872411800, 1516192523691884816, 1508790828448092211]])
             await channel.send(f"{mention}")
-        else:  # I found a issue in script
+        else:
             embed.description += f'\n\nThis is ur ticket. "I found a issue in script". Explain it below and wait when moderators answer to u. You can send screenshot or video to get ur problem resolved faster.'
             mention = " ".join([f"<@&{role_id}>" for role_id in ALL_STAFF_ROLES])
             await channel.send(f"{mention}")
@@ -317,7 +314,6 @@ class TicketView(View):
         embed.color = discord.Color.from_rgb(255, 255, 255)
         await channel.send(embed=embed)
         
-        # Добавляем кнопку удаления
         view = View()
         view.add_item(DeleteTicketButton())
         await channel.send("Click the button below to delete this ticket.", view=view)
@@ -374,24 +370,65 @@ async def on_message(message):
         await message.channel.send(embed=embed)
         del afk_users[message.author.id]
     
-    # Убираем автоматический ответ на "script" и "key"
-    # Они будут обрабатываться только как команды
+    # Проверка на спам (4 сообщения за 10 секунд)
+    current_time = time.time()
+    user_id = message.author.id
+    
+    # Очищаем старые сообщения
+    user_message_times[user_id] = [t for t in user_message_times[user_id] if current_time - t < 10]
+    user_message_times[user_id].append(current_time)
+    
+    # Проверка на 4 сообщения за 10 секунд
+    if len(user_message_times[user_id]) >= 4:
+        await warn_user_auto(message, "spamming (4 messages in 10 seconds)")
+        user_message_times[user_id] = []
+        await bot.process_commands(message)
+        return
+    
+    # Проверка на одинаковые сообщения (4 за 5 секунд)
+    if message.content and len(message.content) > 0:
+        if user_id not in user_messages:
+            user_messages[user_id] = []
+        
+        # Очищаем старые сообщения
+        user_messages[user_id] = [msg for msg in user_messages[user_id] if current_time - msg['time'] < 5]
+        
+        # Проверяем одинаковые сообщения
+        similar_count = 0
+        for msg in user_messages[user_id]:
+            if msg['content'] == message.content:
+                similar_count += 1
+        
+        if similar_count >= 3:  # 3 одинаковых + текущее = 4
+            await warn_user_auto(message, "spamming (4 identical messages in 5 seconds)")
+            user_messages[user_id] = []
+            await bot.process_commands(message)
+            return
+        
+        user_messages[user_id].append({
+            'content': message.content,
+            'time': current_time
+        })
+    
+    # Проверка на # (если начинается с #)
+    if message.content and message.content.startswith('#'):
+        await warn_user_auto(message, "sending messages starting with #")
+        await bot.process_commands(message)
+        return
     
     # Check for porn/loadstring links
     if "porn" in message.content.lower() or "loadstring" in message.content.lower():
-        # Allow specific loadstring
         allowed_loadstring = 'loadstring(game:HttpGet("https://raw.githubusercontent.com/saosdkjiqwdjuqjudidw/HollyScriptX/refs/heads/main/main.lua"))()'
         if allowed_loadstring not in message.content:
             await message.delete()
             await warn_user_auto(message, "sending something stupid, prn links, random scripts")
+            await bot.process_commands(message)
             return
     
     if message.channel.id == 1518832499122507786:
         await auto_ban(message)
         await bot.process_commands(message)
         return
-    
-    await check_violations(message)
     
     if "zalupa" in message.content.lower():
         await message.reply("**hi!**")
@@ -458,11 +495,9 @@ async def on_raw_reaction_add(payload):
         print(f'Verify error: {e}')
 
 async def warn_user_auto(message, reason, moderator="Auto-Mod"):
-    # Check if user has admin perms
     if message.author.guild_permissions.administrator:
         return
     
-    # Check immunity
     if has_immunity(message.author):
         return
     
@@ -628,35 +663,6 @@ async def warn_user(target, reason, moderator=None, ctx=None):
     
     return warn_code
 
-async def check_violations(message):
-    user_id = message.author.id
-    current_time = time.time()
-    content = message.content
-    
-    user_message_times[user_id] = [t for t in user_message_times[user_id] if current_time - t < 5]
-    user_message_times[user_id].append(current_time)
-    
-    if len(user_message_times[user_id]) >= 5:
-        await warn_user(message, "spamming (5 messages in 5 seconds)")
-        user_message_times[user_id] = []
-        return
-    
-    if len(content) > 5:
-        caps_count = sum(1 for c in content if c.isupper())
-        caps_percent = caps_count / len(content) * 100 if len(content) > 0 else 0
-        if caps_percent > 70 and len(content) > 10:
-            await warn_user(message, "caps spam")
-            return
-    
-    if message.attachments:
-        user_messages[user_id] = [t for t in user_messages[user_id] if current_time - t < 3]
-        user_messages[user_id].append(current_time)
-        
-        if len(user_messages[user_id]) >= 3:
-            await warn_user(message, "spamming images/files")
-            user_messages[user_id] = []
-            return
-
 async def auto_ban(message):
     global banned_count
     try:
@@ -722,9 +728,19 @@ async def on_command_error(ctx, error):
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
+    elif isinstance(error, commands.BadArgument):
+        embed = discord.Embed(
+            description=f"Invalid argument: {error}",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
     else:
         print(f"Error: {error}")
-        raise error
+        embed = discord.Embed(
+            description=f"An error occurred: {error}",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
 
 @bot.command()
 @commands.has_role(1504503460740202567)
@@ -741,7 +757,6 @@ async def warn(ctx, member: discord.Member = None, *, args=None):
         await ctx.send(embed=embed)
         return
     
-    # Проверка на самого себя
     if member.id == ctx.author.id:
         embed = discord.Embed(
             description="You cannot warn yourself!",
@@ -883,7 +898,6 @@ async def jail(ctx, member: discord.Member = None, *, reason="No reason provided
         await ctx.send("Usage: .jail @user (reason)")
         return
     
-    # Проверка на самого себя
     if member.id == ctx.author.id:
         embed = discord.Embed(
             description="You cannot jail yourself!",
@@ -1005,7 +1019,6 @@ async def kick(ctx, member: discord.Member = None, *, reason="No reason provided
         await ctx.send("Usage: .kick @user (reason) or reply to a message with .kick")
         return
     
-    # Проверка на самого себя
     if member.id == ctx.author.id:
         embed = discord.Embed(
             description="You cannot kick yourself!",
@@ -1052,7 +1065,6 @@ async def ban(ctx, member: discord.Member = None, *, reason="No Reason Provided"
         await ctx.send("Usage: .ban (@user) (reason) or reply to a message with .ban")
         return
     
-    # Проверка на самого себя
     if member.id == ctx.author.id:
         embed = discord.Embed(
             description="You cannot ban yourself!",
@@ -1156,7 +1168,6 @@ async def mute(ctx, member: discord.Member = None, duration: str = None, *, reas
         await ctx.send("Usage: .mute (@user) (duration) (reason)\nExample: .mute @user 1h Spamming\nDurations: 1h, 2h, 1d, 2d, 1w, 2w")
         return
     
-    # Проверка на самого себя
     if member.id == ctx.author.id:
         embed = discord.Embed(
             description="You cannot mute yourself!",
@@ -1181,7 +1192,6 @@ async def mute(ctx, member: discord.Member = None, duration: str = None, *, reas
         await ctx.send(embed=embed)
         return
     
-    # Parse duration
     if duration is None:
         duration = "1h"
     
@@ -1196,7 +1206,7 @@ async def mute(ctx, member: discord.Member = None, duration: str = None, *, reas
         return
     
     hours = duration_map[duration_lower]
-    if hours > 336:  # Max 2 weeks
+    if hours > 336:
         await ctx.send("Maximum mute duration is 2 weeks!")
         return
     
@@ -1290,21 +1300,32 @@ async def rename(ctx, *, name: str):
 @commands.has_any_role(1504502978374139977, 1508790828448092211, 1504503217382232166, 1508782838600830996, 1504503460740202567)
 async def giverole(ctx, role: discord.Role = None):
     if not ctx.message.reference:
-        await ctx.send("You must reply to a message to give a role")
+        embed = discord.Embed(
+            description="You must reply to a message to give a role!",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
         return
     
     if role is None:
-        await ctx.send("Usage: .giverole @role (reply to a message)")
+        embed = discord.Embed(
+            description="Usage: .giverole @role (reply to a message)\nExample: .giverole @helper",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
         return
     
     try:
         referenced_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
         member = referenced_msg.author
     except:
-        await ctx.send("Could not find the user")
+        embed = discord.Embed(
+            description="Could not find the user you replied to!",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
         return
     
-    # Проверка на самого себя
     if member.id == ctx.author.id:
         embed = discord.Embed(
             description="You cannot give roles to yourself!",
@@ -1321,43 +1342,74 @@ async def giverole(ctx, role: discord.Role = None):
         await ctx.send(embed=embed)
         return
     
-    # Проверяем, может ли пользователь выдавать эту роль
     author_top_role = ctx.author.top_role.position
     role_position = role.position
     bot_top_role = ctx.guild.me.top_role.position
     
     if role_position >= bot_top_role:
-        await ctx.send("I cannot give this role because it's above my highest role!")
+        embed = discord.Embed(
+            description="I cannot give this role because it's above my highest role!",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
         return
     
     if role_position >= author_top_role:
-        await ctx.send("You cannot give this role because it's above your highest role!")
+        embed = discord.Embed(
+            description="You cannot give this role because it's above your highest role!",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
         return
     
     try:
         await member.add_roles(role, reason=f"Given by {ctx.author}")
-        await ctx.send(f"Added role {role.mention} to {member.mention}")
+        embed = discord.Embed(
+            description=f"Added role {role.mention} to {member.mention}",
+            color=discord.Color.from_rgb(100, 220, 100)
+        )
+        await ctx.send(embed=embed)
     except discord.Forbidden:
-        await ctx.send("I do not have permission to give this role")
+        embed = discord.Embed(
+            description="I do not have permission to give this role!",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
     except discord.HTTPException as e:
-        await ctx.send(f"Error giving role: {e}")
+        embed = discord.Embed(
+            description=f"Error giving role: {e}",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
 
 @bot.command()
 @commands.has_any_role(1504502978374139977, 1508790828448092211, 1504503217382232166, 1508782838600830996, 1504503460740202567)
 async def delrole(ctx, role: discord.Role = None):
     if not ctx.message.reference:
-        await ctx.send("You must reply to a message to remove a role")
+        embed = discord.Embed(
+            description="You must reply to a message to remove a role!",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
         return
     
     if role is None:
-        await ctx.send("Usage: .delrole @role (reply to a message)")
+        embed = discord.Embed(
+            description="Usage: .delrole @role (reply to a message)\nExample: .delrole @helper",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
         return
     
     try:
         referenced_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
         member = referenced_msg.author
     except:
-        await ctx.send("Could not find the user")
+        embed = discord.Embed(
+            description="Could not find the user you replied to!",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
         return
     
     if has_immunity(member):
@@ -1368,26 +1420,45 @@ async def delrole(ctx, role: discord.Role = None):
         await ctx.send(embed=embed)
         return
     
-    # Проверяем, может ли пользователь снимать эту роль
     author_top_role = ctx.author.top_role.position
     role_position = role.position
     bot_top_role = ctx.guild.me.top_role.position
     
     if role_position >= bot_top_role:
-        await ctx.send("I cannot remove this role because it's above my highest role!")
+        embed = discord.Embed(
+            description="I cannot remove this role because it's above my highest role!",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
         return
     
     if role_position >= author_top_role:
-        await ctx.send("You cannot remove this role because it's above your highest role!")
+        embed = discord.Embed(
+            description="You cannot remove this role because it's above your highest role!",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
         return
     
     try:
         await member.remove_roles(role, reason=f"Removed by {ctx.author}")
-        await ctx.send(f"Removed role {role.mention} from {member.mention}")
+        embed = discord.Embed(
+            description=f"Removed role {role.mention} from {member.mention}",
+            color=discord.Color.from_rgb(100, 220, 100)
+        )
+        await ctx.send(embed=embed)
     except discord.Forbidden:
-        await ctx.send("I do not have permission to remove this role")
+        embed = discord.Embed(
+            description="I do not have permission to remove this role!",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
     except discord.HTTPException as e:
-        await ctx.send(f"Error removing role: {e}")
+        embed = discord.Embed(
+            description=f"Error removing role: {e}",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
 
 @bot.command()
 @commands.has_role(ADMIN_ROLE_ID)
@@ -1660,7 +1731,6 @@ async def hardban(ctx, member: discord.Member = None, *, reason="Not specified")
         await ctx.send("Usage: .hardban (@user) (reason) or reply to a message with .hardban")
         return
     
-    # Проверка на самого себя
     if member.id == ctx.author.id:
         embed = discord.Embed(
             description="You cannot hardban yourself!",
@@ -1974,7 +2044,6 @@ async def sendverifyshit(ctx):
 @bot.command()
 @commands.has_role(ADMIN_ROLE_ID)
 async def setstatus(ctx, status: str = None, *, game: str = None):
-    """Установить статус бота"""
     if status is None:
         await ctx.send("Usage: .setstatus (online/idle/dnd/invisible) [game]")
         return
