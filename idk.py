@@ -213,7 +213,6 @@ def format_afk_time(start_time):
 
 def save_warnings():
     try:
-        # Конвертируем defaultdict в обычный dict для JSON
         warnings_dict = {}
         for key, value in warnings.items():
             warnings_dict[str(key)] = value
@@ -234,6 +233,25 @@ def load_warnings():
         pass
     except Exception as e:
         print(f"Error loading warnings: {e}")
+
+# Кнопка для удаления тикета
+class DeleteTicketButton(Button):
+    def __init__(self):
+        super().__init__(label="🗑️ Delete Ticket", style=discord.ButtonStyle.danger)
+    
+    async def callback(self, interaction: discord.Interaction):
+        # Проверка прав (админ или создатель тикета)
+        if not interaction.user.guild_permissions.administrator:
+            embed = discord.Embed(
+                description="You don't have permission to delete this ticket!",
+                color=discord.Color.from_rgb(255, 200, 0)
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+        
+        await interaction.response.send_message("Deleting ticket...", ephemeral=True)
+        await asyncio.sleep(1)
+        await interaction.channel.delete()
 
 # Ticket Views
 class TicketView(View):
@@ -298,6 +316,12 @@ class TicketView(View):
         
         embed.color = discord.Color.from_rgb(255, 255, 255)
         await channel.send(embed=embed)
+        
+        # Добавляем кнопку удаления
+        view = View()
+        view.add_item(DeleteTicketButton())
+        await channel.send("Click the button below to delete this ticket.", view=view)
+        
         await interaction.followup.send(f"Ticket created: {channel.mention}", ephemeral=True)
 
 @bot.event
@@ -350,11 +374,8 @@ async def on_message(message):
         await message.channel.send(embed=embed)
         del afk_users[message.author.id]
     
-    # Check for script keyword
-    if "script" in message.content.lower():
-        channel = bot.get_channel(1513694879119835246)
-        if channel:
-            await message.reply(f"<#{channel.id}>")
+    # Убираем автоматический ответ на "script" и "key"
+    # Они будут обрабатываться только как команды
     
     # Check for porn/loadstring links
     if "porn" in message.content.lower() or "loadstring" in message.content.lower():
@@ -367,11 +388,6 @@ async def on_message(message):
     
     if message.channel.id == 1518832499122507786:
         await auto_ban(message)
-        await bot.process_commands(message)
-        return
-    
-    if "key" in message.content.lower():
-        await message.reply("HSX-7562-3194-0835-4981-2470-1488-1029-6967")
         await bot.process_commands(message)
         return
     
@@ -518,13 +534,10 @@ async def warn_user_auto(message, reason, moderator="Auto-Mod"):
     return warn_code
 
 async def warn_user(target, reason, moderator=None, ctx=None):
-    # Проверяем, что это пользователь (не сообщение)
     if hasattr(target, 'author'):
-        # Это сообщение
         member = target.author
         channel = target.channel
     else:
-        # Это участник
         member = target
         channel = ctx.channel if ctx else None
     
