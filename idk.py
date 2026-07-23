@@ -242,13 +242,13 @@ class DeleteTicketButton(Button):
     async def callback(self, interaction: discord.Interaction):
         if not interaction.user.guild_permissions.administrator:
             embed = discord.Embed(
-                description="You don't have permission to delete this ticket!",
+                description="❌ You don't have permission to delete this ticket!",
                 color=discord.Color.from_rgb(255, 200, 0)
             )
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
         
-        await interaction.response.send_message("Deleting ticket...", ephemeral=True)
+        await interaction.response.send_message("🗑️ Deleting ticket...", ephemeral=True)
         await asyncio.sleep(1)
         await interaction.channel.delete()
 
@@ -271,7 +271,7 @@ class TicketView(View):
         
         category = interaction.guild.get_channel(TICKET_CATEGORY_ID)
         if not category:
-            await interaction.followup.send("Ticket category not found!", ephemeral=True)
+            await interaction.followup.send("❌ Ticket category not found!", ephemeral=True)
             return
         
         ticket_id = ''.join(random.choices(string.digits, k=3))
@@ -318,7 +318,7 @@ class TicketView(View):
         view.add_item(DeleteTicketButton())
         await channel.send("Click the button below to delete this ticket.", view=view)
         
-        await interaction.followup.send(f"Ticket created: {channel.mention}", ephemeral=True)
+        await interaction.followup.send(f"✅ Ticket created: {channel.mention}", ephemeral=True)
 
 @bot.event
 async def on_ready():
@@ -707,7 +707,7 @@ async def auto_ban(message):
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
         embed = discord.Embed(
-            description="Command not found!",
+            description="❌ Command not found!",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -716,7 +716,7 @@ async def on_command_error(ctx, error):
             await ctx.reinvoke()
         else:
             embed = discord.Embed(
-                description="You don't have permissions.",
+                description="❌ You don't have permissions.",
                 color=discord.Color.from_rgb(255, 200, 0)
             )
             await ctx.send(embed=embed)
@@ -725,26 +725,26 @@ async def on_command_error(ctx, error):
             await ctx.reinvoke()
         else:
             embed = discord.Embed(
-                description="You don't have permissions.",
+                description="❌ You don't have permissions.",
                 color=discord.Color.from_rgb(255, 200, 0)
             )
             await ctx.send(embed=embed)
     elif isinstance(error, commands.MemberNotFound):
         embed = discord.Embed(
-            description="User not found! Make sure to ping or use correct ID.",
+            description="❌ User not found! Make sure to ping or use correct ID.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
     elif isinstance(error, commands.BadArgument):
         embed = discord.Embed(
-            description=f"Invalid argument: {error}",
+            description=f"❌ Invalid argument: {error}",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
     else:
         print(f"Error: {error}")
         embed = discord.Embed(
-            description=f"An error occurred: {error}",
+            description=f"❌ An error occurred: {error}",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -766,7 +766,7 @@ async def warn(ctx, member: discord.Member = None, *, args=None):
     
     if member.id == ctx.author.id:
         embed = discord.Embed(
-            description="You cannot warn yourself!",
+            description="❌ You cannot warn yourself!",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -774,7 +774,7 @@ async def warn(ctx, member: discord.Member = None, *, args=None):
     
     if has_immunity(member):
         embed = discord.Embed(
-            description=f"{member.mention} has immunity from punishments.",
+            description=f"❌ {member.mention} has immunity from punishments.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -782,7 +782,7 @@ async def warn(ctx, member: discord.Member = None, *, args=None):
     
     if member.guild_permissions.administrator:
         embed = discord.Embed(
-            description=f"{member.mention} has administrator permissions and cannot be warned.",
+            description=f"❌ {member.mention} has administrator permissions and cannot be warned.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -791,7 +791,7 @@ async def warn(ctx, member: discord.Member = None, *, args=None):
     can_use, remaining = check_cooldown(ctx.author.id, 'warn', WARN_LIMIT, TIME_WINDOW, COOLDOWN_WARN)
     if not can_use:
         embed = discord.Embed(
-            description=f"You have reached the warn limit ({WARN_LIMIT} warns in 5 minutes). Please wait {format_time(remaining)} before using this command again.",
+            description=f"❌ You have reached the warn limit ({WARN_LIMIT} warns in 5 minutes). Please wait {format_time(remaining)} before using this command again.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -809,7 +809,7 @@ async def warn(ctx, member: discord.Member = None, *, args=None):
 async def warn_remove(ctx, member: discord.Member = None, code: str = None):
     if not (has_permission(ctx) or any(role.id == 1504503460740202567 for role in ctx.author.roles)):
         embed = discord.Embed(
-            description="You don't have permissions.",
+            description="❌ You don't have permissions.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -843,7 +843,7 @@ async def warn_remove(ctx, member: discord.Member = None, code: str = None):
             removed = True
             save_warnings()
             embed = discord.Embed(
-                description=f"Removed warning {code} from {member.mention}",
+                description=f"✅ Removed warning {code} from {member.mention}",
                 color=discord.Color.from_rgb(100, 220, 100)
             )
             await ctx.send(embed=embed)
@@ -851,7 +851,7 @@ async def warn_remove(ctx, member: discord.Member = None, code: str = None):
     
     if not removed:
         embed = discord.Embed(
-            description=f"Warning {code} not found for {member.mention}",
+            description=f"❌ Warning {code} not found for {member.mention}",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -860,7 +860,7 @@ async def warn_remove(ctx, member: discord.Member = None, code: str = None):
 async def warn_list(ctx, member: discord.Member = None):
     if not (has_permission(ctx) or any(role.id == 1504503460740202567 for role in ctx.author.roles)):
         embed = discord.Embed(
-            description="You don't have permissions.",
+            description="❌ You don't have permissions.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -907,7 +907,7 @@ async def jail(ctx, member: discord.Member = None, *, reason="No reason provided
     
     if member.id == ctx.author.id:
         embed = discord.Embed(
-            description="You cannot jail yourself!",
+            description="❌ You cannot jail yourself!",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -915,7 +915,7 @@ async def jail(ctx, member: discord.Member = None, *, reason="No reason provided
     
     if has_immunity(member):
         embed = discord.Embed(
-            description=f"{member.mention} has immunity from punishments.",
+            description=f"❌ {member.mention} has immunity from punishments.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -923,7 +923,7 @@ async def jail(ctx, member: discord.Member = None, *, reason="No reason provided
     
     if member.guild_permissions.administrator:
         embed = discord.Embed(
-            description=f"{member.mention} has administrator permissions and cannot be jailed.",
+            description=f"❌ {member.mention} has administrator permissions and cannot be jailed.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -932,7 +932,7 @@ async def jail(ctx, member: discord.Member = None, *, reason="No reason provided
     can_use, remaining = check_cooldown(ctx.author.id, 'jail', JAIL_LIMIT, TIME_WINDOW, COOLDOWN_JAIL)
     if not can_use:
         embed = discord.Embed(
-            description=f"You have reached the jail limit ({JAIL_LIMIT} jail in 5 minutes). Please wait {format_time(remaining)} before using this command again.",
+            description=f"❌ You have reached the jail limit ({JAIL_LIMIT} jail in 5 minutes). Please wait {format_time(remaining)} before using this command again.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -945,7 +945,7 @@ async def jail(ctx, member: discord.Member = None, *, reason="No reason provided
     
     jail_role = ctx.guild.get_role(JAIL_ROLE_ID)
     if not jail_role:
-        await ctx.send("Jail role not found!")
+        await ctx.send("❌ Jail role not found!")
         return
     
     user_roles_backup[member.id] = [role.id for role in member.roles if role.id != JAIL_ROLE_ID]
@@ -1028,7 +1028,7 @@ async def kick(ctx, member: discord.Member = None, *, reason="No reason provided
     
     if member.id == ctx.author.id:
         embed = discord.Embed(
-            description="You cannot kick yourself!",
+            description="❌ You cannot kick yourself!",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1036,7 +1036,7 @@ async def kick(ctx, member: discord.Member = None, *, reason="No reason provided
     
     if has_immunity(member):
         embed = discord.Embed(
-            description=f"{member.mention} has immunity from punishments.",
+            description=f"❌ {member.mention} has immunity from punishments.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1044,7 +1044,7 @@ async def kick(ctx, member: discord.Member = None, *, reason="No reason provided
     
     if member.guild_permissions.administrator:
         embed = discord.Embed(
-            description=f"{member.mention} has administrator permissions and cannot be kicked.",
+            description=f"❌ {member.mention} has administrator permissions and cannot be kicked.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1058,9 +1058,9 @@ async def kick(ctx, member: discord.Member = None, *, reason="No reason provided
         )
         await ctx.send(embed=embed)
     except discord.Forbidden:
-        await ctx.send("I do not have permission to kick this user")
+        await ctx.send("❌ I do not have permission to kick this user")
     except discord.HTTPException as e:
-        await ctx.send(f"Error kicking user: {e}")
+        await ctx.send(f"❌ Error kicking user: {e}")
 
 @bot.command()
 @commands.has_role(1508782838600830996)
@@ -1074,7 +1074,7 @@ async def ban(ctx, member: discord.Member = None, *, reason="No Reason Provided"
     
     if member.id == ctx.author.id:
         embed = discord.Embed(
-            description="You cannot ban yourself!",
+            description="❌ You cannot ban yourself!",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1082,7 +1082,7 @@ async def ban(ctx, member: discord.Member = None, *, reason="No Reason Provided"
     
     if has_immunity(member):
         embed = discord.Embed(
-            description=f"{member.mention} has immunity from punishments.",
+            description=f"❌ {member.mention} has immunity from punishments.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1090,7 +1090,7 @@ async def ban(ctx, member: discord.Member = None, *, reason="No Reason Provided"
     
     if member.guild_permissions.administrator:
         embed = discord.Embed(
-            description=f"{member.mention} has administrator permissions and cannot be banned.",
+            description=f"❌ {member.mention} has administrator permissions and cannot be banned.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1099,7 +1099,7 @@ async def ban(ctx, member: discord.Member = None, *, reason="No Reason Provided"
     can_use, remaining = check_cooldown(ctx.author.id, 'ban', BAN_LIMIT, TIME_WINDOW, COOLDOWN_BAN)
     if not can_use:
         embed = discord.Embed(
-            description=f"You have reached the ban limit ({BAN_LIMIT} bans in 5 minutes). Please wait {format_time(remaining)} before using this command again.",
+            description=f"❌ You have reached the ban limit ({BAN_LIMIT} bans in 5 minutes). Please wait {format_time(remaining)} before using this command again.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1128,11 +1128,11 @@ async def ban(ctx, member: discord.Member = None, *, reason="No Reason Provided"
         except:
             pass
         
-        await ctx.send(f"User {member.mention} has been banned. Reason: {reason}")
+        await ctx.send(f"✅ User {member.mention} has been banned. Reason: {reason}")
     except discord.Forbidden:
-        await ctx.send("I do not have permission to ban this user")
+        await ctx.send("❌ I do not have permission to ban this user")
     except discord.HTTPException as e:
-        await ctx.send(f"Error banning user: {e}")
+        await ctx.send(f"❌ Error banning user: {e}")
 
 @bot.command()
 @commands.has_role(1508782838600830996)
@@ -1154,16 +1154,16 @@ async def unban(ctx, *, user_input):
     try:
         await ctx.guild.unban(user)
         embed = discord.Embed(
-            description=f"{user.mention} **has been unbanned!**",
+            description=f"✅ {user.mention} **has been unbanned!**",
             color=discord.Color.from_rgb(100, 220, 100)
         )
         await ctx.send(embed=embed)
     except discord.NotFound:
-        await ctx.send("User is not banned or not found")
+        await ctx.send("❌ User is not banned or not found")
     except discord.Forbidden:
-        await ctx.send("I do not have permission to unban this user")
+        await ctx.send("❌ I do not have permission to unban this user")
     except discord.HTTPException as e:
-        await ctx.send(f"Error unbanning user: {e}")
+        await ctx.send(f"❌ Error unbanning user: {e}")
 
 @bot.command()
 @commands.has_role(1504503460740202567)
@@ -1177,7 +1177,7 @@ async def mute(ctx, member: discord.Member = None, duration: str = None, *, reas
     
     if member.id == ctx.author.id:
         embed = discord.Embed(
-            description="You cannot mute yourself!",
+            description="❌ You cannot mute yourself!",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1185,7 +1185,7 @@ async def mute(ctx, member: discord.Member = None, duration: str = None, *, reas
     
     if has_immunity(member):
         embed = discord.Embed(
-            description=f"{member.mention} has immunity from punishments.",
+            description=f"❌ {member.mention} has immunity from punishments.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1193,7 +1193,7 @@ async def mute(ctx, member: discord.Member = None, duration: str = None, *, reas
     
     if member.guild_permissions.administrator:
         embed = discord.Embed(
-            description=f"{member.mention} has administrator permissions and cannot be muted.",
+            description=f"❌ {member.mention} has administrator permissions and cannot be muted.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1209,18 +1209,18 @@ async def mute(ctx, member: discord.Member = None, duration: str = None, *, reas
     
     duration_lower = duration.lower()
     if duration_lower not in duration_map:
-        await ctx.send("Invalid duration! Use: 1h, 2h, 1d, 2d, 1w, 2w")
+        await ctx.send("❌ Invalid duration! Use: 1h, 2h, 1d, 2d, 1w, 2w")
         return
     
     hours = duration_map[duration_lower]
     if hours > 336:
-        await ctx.send("Maximum mute duration is 2 weeks!")
+        await ctx.send("❌ Maximum mute duration is 2 weeks!")
         return
     
     can_use, remaining = check_cooldown(ctx.author.id, 'mute', MUTE_LIMIT, TIME_WINDOW, COOLDOWN_MUTE)
     if not can_use:
         embed = discord.Embed(
-            description=f"You have reached the mute limit ({MUTE_LIMIT} mutes in 5 minutes). Please wait {format_time(remaining)} before using this command again.",
+            description=f"❌ You have reached the mute limit ({MUTE_LIMIT} mutes in 5 minutes). Please wait {format_time(remaining)} before using this command again.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1250,11 +1250,11 @@ async def mute(ctx, member: discord.Member = None, duration: str = None, *, reas
         except:
             pass
         
-        await ctx.send(f"User {member.mention} has been muted for {duration}. Reason: {reason}")
+        await ctx.send(f"✅ User {member.mention} has been muted for {duration}. Reason: {reason}")
     except discord.Forbidden:
-        await ctx.send("I do not have permission to mute this user")
+        await ctx.send("❌ I do not have permission to mute this user")
     except discord.HTTPException as e:
-        await ctx.send(f"Error muting user: {e}")
+        await ctx.send(f"❌ Error muting user: {e}")
 
 @bot.command()
 @commands.has_role(1508782838600830996)
@@ -1269,14 +1269,14 @@ async def unmute(ctx, member: discord.Member = None):
     try:
         await member.remove_timeout()
         embed = discord.Embed(
-            description=f"{member.mention} **has been unmuted!**",
+            description=f"✅ {member.mention} **has been unmuted!**",
             color=discord.Color.from_rgb(100, 220, 100)
         )
         await ctx.send(embed=embed)
     except discord.Forbidden:
-        await ctx.send("I do not have permission to unmute this user")
+        await ctx.send("❌ I do not have permission to unmute this user")
     except discord.HTTPException as e:
-        await ctx.send(f"Error unmuting user: {e}")
+        await ctx.send(f"❌ Error unmuting user: {e}")
 
 @bot.command()
 async def afk(ctx, *, reason="No reason provided"):
@@ -1296,27 +1296,27 @@ async def rename(ctx, *, name: str):
     try:
         await ctx.guild.edit(name=name)
         embed = discord.Embed(
-            description=f"Server renamed to: {name}",
+            description=f"✅ Server renamed to: {name}",
             color=discord.Color.from_rgb(100, 220, 100)
         )
         await ctx.send(embed=embed)
     except Exception as e:
-        await ctx.send(f"Error renaming server: {e}")
+        await ctx.send(f"❌ Error renaming server: {e}")
 
 @bot.command()
 @commands.has_any_role(1504502978374139977, 1508790828448092211, 1504503217382232166, 1508782838600830996, 1504503460740202567)
-async def giverole(ctx, role: discord.Role = None):
+async def giverole(ctx, role_name: str = None):
     if not ctx.message.reference:
         embed = discord.Embed(
-            description="❌ You must reply to a message to give a role!\nUsage: .giverole @role (reply to a message)",
+            description="❌ You must reply to a message to give a role!\nUsage: .giverole (role_name)\nExample: .giverole helper",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
         return
     
-    if role is None:
+    if role_name is None:
         embed = discord.Embed(
-            description="❌ Usage: .giverole @role (reply to a message)\nExample: .giverole @helper",
+            description="❌ Usage: .giverole (role_name)\nExample: .giverole helper\nAvailable roles: " + ", ".join(role_map.keys()),
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1344,6 +1344,26 @@ async def giverole(ctx, role: discord.Role = None):
     if has_immunity(member):
         embed = discord.Embed(
             description=f"❌ {member.mention} has immunity from role changes.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    # Проверяем существование роли
+    role_name_lower = role_name.lower()
+    if role_name_lower not in role_map:
+        embed = discord.Embed(
+            description=f"❌ Role '{role_name}' not found!\nAvailable roles: " + ", ".join(role_map.keys()),
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    role_id = role_map[role_name_lower]
+    role = ctx.guild.get_role(role_id)
+    if not role:
+        embed = discord.Embed(
+            description=f"❌ Role '{role_name}' not found on this server!",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1391,18 +1411,18 @@ async def giverole(ctx, role: discord.Role = None):
 
 @bot.command()
 @commands.has_any_role(1504502978374139977, 1508790828448092211, 1504503217382232166, 1508782838600830996, 1504503460740202567)
-async def delrole(ctx, role: discord.Role = None):
+async def delrole(ctx, role_name: str = None):
     if not ctx.message.reference:
         embed = discord.Embed(
-            description="❌ You must reply to a message to remove a role!\nUsage: .delrole @role (reply to a message)",
+            description="❌ You must reply to a message to remove a role!\nUsage: .delrole (role_name)\nExample: .delrole helper",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
         return
     
-    if role is None:
+    if role_name is None:
         embed = discord.Embed(
-            description="❌ Usage: .delrole @role (reply to a message)\nExample: .delrole @helper",
+            description="❌ Usage: .delrole (role_name)\nExample: .delrole helper\nAvailable roles: " + ", ".join(role_map.keys()),
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1422,6 +1442,26 @@ async def delrole(ctx, role: discord.Role = None):
     if has_immunity(member):
         embed = discord.Embed(
             description=f"❌ {member.mention} has immunity from role changes.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    # Проверяем существование роли
+    role_name_lower = role_name.lower()
+    if role_name_lower not in role_map:
+        embed = discord.Embed(
+            description=f"❌ Role '{role_name}' not found!\nAvailable roles: " + ", ".join(role_map.keys()),
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    role_id = role_map[role_name_lower]
+    role = ctx.guild.get_role(role_id)
+    if not role:
+        embed = discord.Embed(
+            description=f"❌ Role '{role_name}' not found on this server!",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1687,8 +1727,8 @@ async def help_commands(ctx):
     embed2.add_field(name=".unlockchats", value="Unlock all specified channels", inline=False)
     embed2.add_field(name=".verifyall", value="Verifies all people with unverified role", inline=False)
     embed2.add_field(name=".stopverify", value="Stop verification process", inline=False)
-    embed2.add_field(name=".giverole @role", value="Give a role to replied user (reply to message)", inline=False)
-    embed2.add_field(name=".delrole @role", value="Remove a role from replied user (reply to message)", inline=False)
+    embed2.add_field(name=".giverole (role_name)", value="Give a role to replied user (reply to message)", inline=False)
+    embed2.add_field(name=".delrole (role_name)", value="Remove a role from replied user (reply to message)", inline=False)
     embed2.add_field(name=".down (InkGame / MurderMystery2 / Doors)", value="Mark selected script as down.", inline=False)
     embed2.add_field(name=".down ALL", value="Mark all scripts as down.", inline=False)
     embed2.add_field(name=".undetected (InkGame / MurderMystery2 / Doors)", value="Mark selected script as undetected.", inline=False)
@@ -1710,6 +1750,7 @@ async def help_commands(ctx):
     embed3.add_field(name=".help_commands", value="Show this help message", inline=False)
     embed3.add_field(name=".typeinchannel", value="Send warning about no typing channel", inline=False)
     embed3.add_field(name=".sendverifyshit", value="Send verification message", inline=False)
+    embed3.add_field(name="Available Roles", value=", ".join(role_map.keys()), inline=False)
     
     await ctx.send(embed=embed1)
     await ctx.send(embed=embed2)
@@ -1740,7 +1781,7 @@ async def hardban(ctx, member: discord.Member = None, *, reason="Not specified")
     
     if member.id == ctx.author.id:
         embed = discord.Embed(
-            description="You cannot hardban yourself!",
+            description="❌ You cannot hardban yourself!",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1748,7 +1789,7 @@ async def hardban(ctx, member: discord.Member = None, *, reason="Not specified")
     
     if has_immunity(member):
         embed = discord.Embed(
-            description=f"{member.mention} has immunity from punishments.",
+            description=f"❌ {member.mention} has immunity from punishments.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1756,7 +1797,7 @@ async def hardban(ctx, member: discord.Member = None, *, reason="Not specified")
     
     if member.guild_permissions.administrator:
         embed = discord.Embed(
-            description=f"{member.mention} has administrator permissions and cannot be hardbanned.",
+            description=f"❌ {member.mention} has administrator permissions and cannot be hardbanned.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1794,9 +1835,9 @@ async def hardban(ctx, member: discord.Member = None, *, reason="Not specified")
         await ctx.send(embed=embed_channel)
         
     except discord.Forbidden:
-        await ctx.send("I do not have permission to hard-ban this user")
+        await ctx.send("❌ I do not have permission to hard-ban this user")
     except discord.HTTPException as e:
-        await ctx.send(f"Error hard-banning user: {e}")
+        await ctx.send(f"❌ Error hard-banning user: {e}")
 
 @bot.command()
 @commands.has_role(ADMIN_ROLE_ID)
@@ -1828,15 +1869,15 @@ async def unhardban(ctx, *, user_input):
                 pass
         
         embed = discord.Embed(
-            description=f"{member.mention} **has been unhard-banned!**",
+            description=f"✅ {member.mention} **has been unhard-banned!**",
             color=discord.Color.from_rgb(100, 220, 100)
         )
         await ctx.send(embed=embed)
         
     except discord.Forbidden:
-        await ctx.send("I do not have permission to unhard-ban this user")
+        await ctx.send("❌ I do not have permission to unhard-ban this user")
     except discord.HTTPException as e:
-        await ctx.send(f"Error unhard-banning user: {e}")
+        await ctx.send(f"❌ Error unhard-banning user: {e}")
 
 @bot.command()
 @commands.has_role(ADMIN_ROLE_ID)
@@ -1867,11 +1908,11 @@ async def lockchats(ctx):
                 pass
     
     if locked_channels:
-        progress_msg = await ctx.send(f"Locking channels: {len(locked_channels)} channels...")
+        progress_msg = await ctx.send(f"🔒 Locking channels: {len(locked_channels)} channels...")
         await asyncio.sleep(1)
-        await progress_msg.edit(content=f"Locked channels: {', '.join(locked_channels[:5])}" + (f" and {len(locked_channels)-5} more" if len(locked_channels) > 5 else ""))
+        await progress_msg.edit(content=f"✅ Locked channels: {', '.join(locked_channels[:5])}" + (f" and {len(locked_channels)-5} more" if len(locked_channels) > 5 else ""))
     else:
-        await ctx.send("No channels found to lock")
+        await ctx.send("❌ No channels found to lock")
 
 @bot.command()
 @commands.has_role(ADMIN_ROLE_ID)
@@ -1898,11 +1939,11 @@ async def unlockchats(ctx):
                 pass
     
     if unlocked_channels:
-        progress_msg = await ctx.send(f"Unlocking channels: {len(unlocked_channels)} channels...")
+        progress_msg = await ctx.send(f"🔓 Unlocking channels: {len(unlocked_channels)} channels...")
         await asyncio.sleep(1)
-        await progress_msg.edit(content=f"Unlocked channels: {', '.join(unlocked_channels[:5])}" + (f" and {len(unlocked_channels)-5} more" if len(unlocked_channels) > 5 else ""))
+        await progress_msg.edit(content=f"✅ Unlocked channels: {', '.join(unlocked_channels[:5])}" + (f" and {len(unlocked_channels)-5} more" if len(unlocked_channels) > 5 else ""))
     else:
-        await ctx.send("No channels found to unlock")
+        await ctx.send("❌ No channels found to unlock")
 
 @bot.command()
 @commands.has_role(ADMIN_ROLE_ID)
@@ -1910,7 +1951,7 @@ async def verifyall(ctx):
     global verify_running
     
     if verify_running:
-        await ctx.send("Verification process is already running")
+        await ctx.send("❌ Verification process is already running")
         return
     
     guild = ctx.guild
@@ -1918,20 +1959,20 @@ async def verifyall(ctx):
     new_role = guild.get_role(VERIFIED_ROLE_ID)
     
     if not old_role:
-        await ctx.send(f"Role with ID {VERIFY_ROLE_ID} not found")
+        await ctx.send(f"❌ Role with ID {VERIFY_ROLE_ID} not found")
         return
     if not new_role:
-        await ctx.send(f"Role with ID {VERIFIED_ROLE_ID} not found")
+        await ctx.send(f"❌ Role with ID {VERIFIED_ROLE_ID} not found")
         return
     
     members = [member for member in guild.members if old_role in member.roles]
     if not members:
-        await ctx.send("No members found with the specified role")
+        await ctx.send("❌ No members found with the specified role")
         return
     
     verify_running = True
-    unverified_msg = await ctx.send(f"Unverified Users: {len(members)}")
-    progress_msg = await ctx.send("Starting verification...")
+    unverified_msg = await ctx.send(f"📊 Unverified Users: {len(members)}")
+    progress_msg = await ctx.send("🔄 Starting verification...")
     
     success = 0
     fail = 0
@@ -1944,45 +1985,45 @@ async def verifyall(ctx):
             await member.remove_roles(old_role)
             await member.add_roles(new_role)
             success += 1
-            await progress_msg.edit(content=f"Success Verified user: {member.mention} ({index}/{total})")
+            await progress_msg.edit(content=f"✅ Success Verified user: {member.mention} ({index}/{total})")
         except:
             fail += 1
         await asyncio.sleep(0.5)
     
     verify_running = False
-    await unverified_msg.edit(content=f"Unverified Users: {total - success - fail}")
-    await progress_msg.edit(content=f"Verification completed. Success: {success}, Failed: {fail}")
+    await unverified_msg.edit(content=f"📊 Unverified Users: {total - success - fail}")
+    await progress_msg.edit(content=f"✅ Verification completed. Success: {success}, Failed: {fail}")
 
 @bot.command()
 @commands.has_role(ADMIN_ROLE_ID)
 async def stopverify(ctx):
     global verify_running
     if not verify_running:
-        await ctx.send("Verification process is not running")
+        await ctx.send("❌ Verification process is not running")
         return
     verify_running = False
-    await ctx.send("Verification process stopped")
+    await ctx.send("✅ Verification process stopped")
 
 @bot.command()
 @commands.has_role(ADMIN_ROLE_ID)
 async def join(ctx):
     voice_channel = ctx.guild.get_channel(1513692263010799716)
     if not voice_channel:
-        await ctx.send("Voice channel not found")
+        await ctx.send("❌ Voice channel not found")
         return
     if ctx.voice_client:
         await ctx.voice_client.disconnect()
     await voice_channel.connect()
-    await ctx.send("Connected to voice channel")
+    await ctx.send("✅ Connected to voice channel")
 
 @bot.command()
 @commands.has_role(ADMIN_ROLE_ID)
 async def unjoin(ctx):
     if ctx.voice_client:
         await ctx.voice_client.disconnect()
-        await ctx.send("Left voice channel")
+        await ctx.send("✅ Left voice channel")
     else:
-        await ctx.send("Not in a voice channel")
+        await ctx.send("❌ Not in a voice channel")
 
 @bot.command()
 async def invite(ctx):
@@ -2020,7 +2061,7 @@ async def typeinchannel(ctx):
             color=discord.Color.from_rgb(255, 255, 255)
         )
         await channel.send(embed=embed)
-        await ctx.send("Message sent to the channel!", delete_after=3)
+        await ctx.send("✅ Message sent to the channel!", delete_after=3)
 
 @bot.command()
 async def sendverifyshit(ctx):
@@ -2032,7 +2073,7 @@ async def sendverifyshit(ctx):
     
     channel = bot.get_channel(VERIFY_MESSAGE_CHANNEL_ID)
     if not channel:
-        await ctx.send("Verify channel not found!", delete_after=3)
+        await ctx.send("❌ Verify channel not found!", delete_after=3)
         return
     
     embed = discord.Embed(
@@ -2046,7 +2087,7 @@ async def sendverifyshit(ctx):
     verify_message_id = message.id
     verify_channel_id = channel.id
     
-    await ctx.send("Verification message sent!", delete_after=3)
+    await ctx.send("✅ Verification message sent!", delete_after=3)
 
 @bot.command()
 @commands.has_role(ADMIN_ROLE_ID)
@@ -2063,7 +2104,7 @@ async def setstatus(ctx, status: str = None, *, game: str = None):
     }
     
     if status.lower() not in status_map:
-        await ctx.send("Invalid status. Use: online, idle, dnd, invisible")
+        await ctx.send("❌ Invalid status. Use: online, idle, dnd, invisible")
         return
     
     activity = None
@@ -2071,7 +2112,7 @@ async def setstatus(ctx, status: str = None, *, game: str = None):
         activity = discord.Game(name=game)
     
     await bot.change_presence(status=status_map[status.lower()], activity=activity)
-    await ctx.send(f"Status changed to: {status}")
+    await ctx.send(f"✅ Status changed to: {status}")
 
 if __name__ == "__main__":
     if TOKEN is None:
