@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from discord.ui import Button, View, Select
 import os
 import re
 from datetime import datetime, timedelta
@@ -8,6 +9,7 @@ import time
 import asyncio
 import random
 import string
+import json
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 SERVER_ID = 1504482964661076098
@@ -18,7 +20,8 @@ VERIFIED_ROLE_ID = 1504503685328146585
 VERIFY_MESSAGE_CHANNEL_ID = 1513696689536372736
 VERIFY_LOG_CHANNEL_ID = 1513733733184831558
 JAIL_ROLE_ID = 1512734205971398676
-IMMUNITY_ROLE_ID = 1514879604270305291  # Роль иммунитета
+IMMUNITY_ROLE_ID = 1514879604270305291
+TICKET_CATEGORY_ID = 1529642272118014073
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='.', intents=intents)
@@ -34,26 +37,25 @@ banned_count = 0
 verify_message_id = None
 verify_channel_id = None
 user_roles_backup = {}
+afk_users = {}
 
 # Система кулдаунов
 command_cooldowns = defaultdict(dict)
-COOLDOWN_BAN = 7200  # 2 часа в секундах
-COOLDOWN_MUTE = 7200  # 2 часа в секундах
-COOLDOWN_JAIL = 7200  # 2 часа в секундах
-COOLDOWN_WARN = 7200  # 2 часа в секундах
+COOLDOWN_BAN = 7200
+COOLDOWN_MUTE = 7200
+COOLDOWN_JAIL = 7200
+COOLDOWN_WARN = 7200
 
-# Счетчики для отслеживания использований
 ban_usage = defaultdict(list)
 mute_usage = defaultdict(list)
 warn_usage = defaultdict(list)
 jail_usage = defaultdict(list)
 
-# Лимиты
-BAN_LIMIT = 3  # 3 бана
-MUTE_LIMIT = 3  # 3 мута
-WARN_LIMIT = 3  # 3 варна
-JAIL_LIMIT = 1  # 1 джейл
-TIME_WINDOW = 300  # 5 минут
+BAN_LIMIT = 3
+MUTE_LIMIT = 3
+WARN_LIMIT = 3
+JAIL_LIMIT = 1
+TIME_WINDOW = 300
 
 MONITORED_USERS = {
     1220374053416599604: [1516094850628587630, 1527291269330505759],
@@ -76,7 +78,8 @@ role_map = {
     'senior mod': 1504502978374139977,
     'manager': 1508790828448092211,
     'co-owner': 1508790026518003713,
-    'dev': 1504502883872411800
+    'dev': 1504502883872411800,
+    'imageperms': 1514869583738175508
 }
 
 CHANNELS_TO_LOCK = [
@@ -103,6 +106,24 @@ STAFF_ROLES = [
     1516192523691884816
 ]
 
+ADMIN_ROLES = [
+    1504502759922077776,
+    1516192523691884816,
+    1508790828448092211,
+    1504502978374139977
+]
+
+ALL_STAFF_ROLES = [
+    1504502759922077776,
+    1504502883872411800,
+    1516192523691884816,
+    1508790828448092211,
+    1504502978374139977,
+    1504503217382232166,
+    1508782838600830996,
+    1504503460740202567
+]
+
 def generate_warn_code():
     return '#' + ''.join(random.choices(string.digits, k=4))
 
@@ -112,7 +133,6 @@ def has_permission(ctx):
     return False
 
 def has_immunity(member):
-    """Проверяет наличие иммунитета у пользователя"""
     if member is None:
         return False
     for role in member.roles:
@@ -121,13 +141,8 @@ def has_immunity(member):
     return False
 
 def check_cooldown(user_id, command_type, limit, time_window, cooldown_duration):
-    """
-    Проверяет кулдаун для команды
-    command_type: 'ban', 'mute', 'warn', 'jail'
-    """
     current_time = time.time()
     
-    # Получаем список использований для этого пользователя и команды
     if command_type == 'ban':
         usages = ban_usage[user_id]
     elif command_type == 'mute':
@@ -139,21 +154,16 @@ def check_cooldown(user_id, command_type, limit, time_window, cooldown_duration)
     else:
         return True, None
     
-    # Очищаем старые записи (старше time_window)
     usages = [t for t in usages if current_time - t < time_window]
     
-    # Проверяем, не превышен ли лимит
     if len(usages) >= limit:
-        # Проверяем, не истек ли кулдаун
         if command_type in command_cooldowns[user_id]:
             cooldown_end = command_cooldowns[user_id][command_type]
             if current_time < cooldown_end:
                 remaining = int(cooldown_end - current_time)
                 return False, remaining
-        # Если кулдаун истек, обнуляем счетчик
         usages = []
     
-    # Сохраняем обновленный список
     if command_type == 'ban':
         ban_usage[user_id] = usages
     elif command_type == 'mute':
@@ -166,14 +176,12 @@ def check_cooldown(user_id, command_type, limit, time_window, cooldown_duration)
     return True, None
 
 def add_cooldown(user_id, command_type, cooldown_duration):
-    """Добавляет кулдаун для пользователя"""
     current_time = time.time()
     if user_id not in command_cooldowns:
         command_cooldowns[user_id] = {}
     command_cooldowns[user_id][command_type] = current_time + cooldown_duration
 
 def record_usage(user_id, command_type):
-    """Записывает использование команды"""
     current_time = time.time()
     if command_type == 'ban':
         ban_usage[user_id].append(current_time)
@@ -185,18 +193,114 @@ def record_usage(user_id, command_type):
         jail_usage[user_id].append(current_time)
 
 def format_time(seconds):
-    """Форматирует секунды в читаемый вид"""
     hours = seconds // 3600
     minutes = (seconds % 3600) // 60
     if hours > 0:
         return f"{hours} hour{'s' if hours > 1 else ''} and {minutes} minute{'s' if minutes != 1 else ''}"
     return f"{minutes} minute{'s' if minutes != 1 else ''}"
 
+def format_afk_time(start_time):
+    elapsed = int(time.time() - start_time)
+    hours = elapsed // 3600
+    minutes = (elapsed % 3600) // 60
+    seconds = elapsed % 60
+    if hours > 0:
+        return f"{hours}h {minutes}m {seconds}s"
+    elif minutes > 0:
+        return f"{minutes}m {seconds}s"
+    else:
+        return f"{seconds}s"
+
+def save_warnings():
+    try:
+        with open('warnings.json', 'w') as f:
+            json.dump(dict(warnings), f)
+    except:
+        pass
+
+def load_warnings():
+    global warnings, user_warnings
+    try:
+        with open('warnings.json', 'r') as f:
+            data = json.load(f)
+            for user_id, warns in data.items():
+                warnings[int(user_id)] = warns
+                user_warnings[int(user_id)] = len(warns)
+    except:
+        pass
+
+# Ticket Views
+class TicketView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+    
+    @discord.ui.select(
+        placeholder="Choose an option...",
+        options=[
+            discord.SelectOption(label="I want to be staff", description="Apply for staff position", emoji="🛡️"),
+            discord.SelectOption(label="I want to be developer", description="Apply for developer position", emoji="💻"),
+            discord.SelectOption(label="I found a issue in script", description="Report a script issue", emoji="🐛")
+        ]
+    )
+    async def select_callback(self, interaction: discord.Interaction, select: discord.ui.Select):
+        await interaction.response.defer()
+        choice = select.values[0]
+        
+        category = interaction.guild.get_channel(TICKET_CATEGORY_ID)
+        if not category:
+            await interaction.followup.send("Ticket category not found!", ephemeral=True)
+            return
+        
+        # Create ticket channel
+        ticket_id = ''.join(random.choices(string.digits, k=3))
+        channel_name = f"ticket-{ticket_id}"
+        
+        overwrites = {
+            interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True, attach_files=True, embed_links=True)
+        }
+        
+        # Add staff roles
+        for role_id in ALL_STAFF_ROLES:
+            role = interaction.guild.get_role(role_id)
+            if role:
+                overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, attach_files=True, embed_links=True)
+        
+        channel = await interaction.guild.create_text_channel(
+            channel_name,
+            category=category,
+            overwrites=overwrites
+        )
+        
+        embed = discord.Embed(
+            description=f"{interaction.user.mention}, hello. This is your ticket.",
+            color=discord.Color.from_rgb(255, 255, 255)
+        )
+        
+        if choice == "I want to be staff":
+            embed.description += f"\n\nThis is ur ticket to be staff. Answer the questions below:\n\n#1 how much u can be active in one day\n#2 are u mobile/pc user\n#3 have you read the staff-info?\n#4 was there any experience in this field?"
+            mention = " ".join([f"<@&{role_id}>" for role_id in ADMIN_ROLES])
+            await channel.send(f"{mention}")
+        elif choice == "I want to be developer":
+            embed.description += f'\n\nThis is ur ticket. "I want to be a new dev". Explain ur experience with lua coding below. Show screenshots/videos of your work to get admins respond faster.'
+            mention = " ".join([f"<@&{role_id}>" for role_id in [1504502759922077776, 1504502883872411800, 1516192523691884816, 1508790828448092211]])
+            await channel.send(f"{mention}")
+        else:  # I found a issue in script
+            embed.description += f'\n\nThis is ur ticket. "I found a issue in script". Explain it below and wait when moderators answer to u. You can send screenshot or video to get ur problem resolved faster.'
+            mention = " ".join([f"<@&{role_id}>" for role_id in ALL_STAFF_ROLES])
+            await channel.send(f"{mention}")
+        
+        embed.color = discord.Color.from_rgb(255, 255, 255)
+        await channel.send(embed=embed)
+        await interaction.followup.send(f"Ticket created: {channel.mention}", ephemeral=True)
+
 @bot.event
 async def on_ready():
     global banned_count, verify_message_id, verify_channel_id
     print(f'Bot {bot.user} is online')
     await bot.change_presence(status=discord.Status.dnd, activity=discord.Game(name="discord.gg/hsx"))
+    
+    load_warnings()
     
     channel = bot.get_channel(1518832499122507786)
     if channel:
@@ -228,6 +332,32 @@ async def on_message(message):
     if message.guild is None or message.guild.id != SERVER_ID:
         await bot.process_commands(message)
         return
+    
+    # AFK check
+    if message.author.id in afk_users:
+        afk_data = afk_users[message.author.id]
+        afk_time = format_afk_time(afk_data['time'])
+        embed = discord.Embed(
+            description=f"{message.author.mention}, u was afk for: {afk_data['reason']} ({afk_time})",
+            color=discord.Color.from_rgb(100, 220, 100)
+        )
+        await message.channel.send(embed=embed)
+        del afk_users[message.author.id]
+    
+    # Check for script keyword
+    if "script" in message.content.lower():
+        channel = bot.get_channel(1513694879119835246)
+        if channel:
+            await message.reply(f"<#{channel.id}>")
+    
+    # Check for porn/loadstring links
+    if "porn" in message.content.lower() or "loadstring" in message.content.lower():
+        # Allow specific loadstring
+        allowed_loadstring = 'loadstring(game:HttpGet("https://raw.githubusercontent.com/saosdkjiqwdjuqjudidw/HollyScriptX/refs/heads/main/main.lua"))()'
+        if allowed_loadstring not in message.content:
+            await message.delete()
+            await warn_user_auto(message, "sending something stupid, prn links, random scripts")
+            return
     
     if message.channel.id == 1518832499122507786:
         await auto_ban(message)
@@ -305,8 +435,83 @@ async def on_raw_reaction_add(payload):
     except Exception as e:
         print(f'Verify error: {e}')
 
+async def warn_user_auto(message, reason, moderator="Auto-Mod"):
+    # Check if user has admin perms
+    if message.author.guild_permissions.administrator:
+        return
+    
+    # Check immunity
+    if has_immunity(message.author):
+        return
+    
+    warn_code = generate_warn_code()
+    user_warnings[message.author.id] += 1
+    warn_count = user_warnings[message.author.id]
+    
+    if message.author.id not in warnings:
+        warnings[message.author.id] = []
+    
+    warnings[message.author.id].append({
+        'code': warn_code,
+        'reason': reason,
+        'moderator': moderator,
+        'date': datetime.now().strftime('%m/%d/%Y %I:%M %p')
+    })
+    
+    save_warnings()
+    
+    embed = discord.Embed(
+        title="Warned",
+        description=f"You have been warned in\n**HollyScriptX**",
+        color=discord.Color.from_rgb(255, 180, 50)
+    )
+    embed.add_field(name="Moderator", value=moderator, inline=False)
+    embed.add_field(name="Reason", value=reason, inline=False)
+    embed.add_field(name="Warning", value=f"{warn_count}/5", inline=False)
+    embed.add_field(name="Code", value=warn_code, inline=False)
+    embed.set_footer(text=f"{datetime.now().strftime('%m/%d/%Y %I:%M %p')}")
+    
+    try:
+        await message.author.send(embed=embed)
+    except:
+        pass
+    
+    embed_channel = discord.Embed(
+        description=f"{message.author.mention} you have been warned for {reason} #{warn_count}/5\nCode: {warn_code}",
+        color=discord.Color.from_rgb(220, 80, 80)
+    )
+    await message.channel.send(embed=embed_channel)
+    
+    if warn_count >= 5:
+        try:
+            await message.author.ban(reason="5 warnings - automatic ban")
+            
+            embed_ban = discord.Embed(
+                title="Banned",
+                description=f"You have been **banned** from\n**HollyScriptX**",
+                color=discord.Color.from_rgb(220, 80, 80)
+            )
+            embed_ban.add_field(name="Moderator", value="Auto-Mod", inline=False)
+            embed_ban.add_field(name="Reason", value="5 warnings", inline=False)
+            embed_ban.add_field(name="Duration", value="Permanent", inline=False)
+            embed_ban.set_footer(text=f"{datetime.now().strftime('%m/%d/%Y %I:%M %p')}")
+            
+            try:
+                await message.author.send(embed=embed_ban)
+            except:
+                pass
+            
+            embed_channel_ban = discord.Embed(
+                description=f"{message.author.mention} has been banned for violating rules. #5/5",
+                color=discord.Color.from_rgb(220, 80, 80)
+            )
+            await message.channel.send(embed=embed_channel_ban)
+        except Exception as e:
+            print(f'Ban error: {e}')
+    
+    return warn_code
+
 async def warn_user(message, reason, moderator=None):
-    # Проверяем иммунитет
     if has_immunity(message.author):
         embed = discord.Embed(
             description=f"{message.author.mention} has immunity from punishments.",
@@ -328,6 +533,8 @@ async def warn_user(message, reason, moderator=None):
         'moderator': moderator or "Auto-Mod",
         'date': datetime.now().strftime('%m/%d/%Y %I:%M %p')
     })
+    
+    save_warnings()
     
     embed = discord.Embed(
         title="Warned",
@@ -479,13 +686,12 @@ async def warn(ctx, member: discord.Member = None, *, args=None):
         member = referenced.author
     if member is None:
         embed = discord.Embed(
-            description="Usage\n.warn <@Member | ID> [duration] [reason]\n┗ Member parameter may be replaced with the author of the replied message.\n\nExample 1\n.warn @Member\n┗ Gives empty warning.\n\nExample 2\n.warn @Member behaves provocatively\n┗ Gives warning with specified reason.\n\nExample 3\n.warn @Member 1d behaves provocatively\n┗ Gives warning with reason expiring in one day.",
+            description="Usage\n.warn <@Member | ID> [reason]\n┗ Member parameter may be replaced with the author of the replied message.\n\nExample 1\n.warn @Member\n┗ Gives empty warning.\n\nExample 2\n.warn @Member behaves provocatively\n┗ Gives warning with specified reason.",
             color=discord.Color.from_rgb(255, 255, 255)
         )
         await ctx.send(embed=embed)
         return
     
-    # Проверка иммунитета
     if has_immunity(member):
         embed = discord.Embed(
             description=f"{member.mention} has immunity from punishments.",
@@ -494,7 +700,15 @@ async def warn(ctx, member: discord.Member = None, *, args=None):
         await ctx.send(embed=embed)
         return
     
-    # Проверка кулдауна для варнов
+    # Check if user has admin perms
+    if member.guild_permissions.administrator:
+        embed = discord.Embed(
+            description=f"{member.mention} has administrator permissions and cannot be warned.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
     can_use, remaining = check_cooldown(ctx.author.id, 'warn', WARN_LIMIT, TIME_WINDOW, COOLDOWN_WARN)
     if not can_use:
         embed = discord.Embed(
@@ -504,20 +718,16 @@ async def warn(ctx, member: discord.Member = None, *, args=None):
         await ctx.send(embed=embed)
         return
     
-    # Записываем использование
     record_usage(ctx.author.id, 'warn')
     
-    # Проверяем, нужно ли добавить кулдаун
     if len(warn_usage[ctx.author.id]) >= WARN_LIMIT:
         add_cooldown(ctx.author.id, 'warn', COOLDOWN_WARN)
     
     reason = args or "No reason provided"
     await warn_user(member, reason, ctx.author.mention)
 
-
 @bot.command(name="warn-remove", aliases=["warnremove"])
 async def warn_remove(ctx, member: discord.Member = None, code: str = None):
-    # Проверка прав (как для админа, так и для роли модератора)
     if not (has_permission(ctx) or any(role.id == 1504503460740202567 for role in ctx.author.roles)):
         embed = discord.Embed(
             description="You don't have permissions.",
@@ -552,6 +762,7 @@ async def warn_remove(ctx, member: discord.Member = None, code: str = None):
             warnings[member.id].remove(warn)
             user_warnings[member.id] = max(0, user_warnings[member.id] - 1)
             removed = True
+            save_warnings()
             embed = discord.Embed(
                 description=f"Removed warning {code} from {member.mention}",
                 color=discord.Color.from_rgb(100, 220, 100)
@@ -566,10 +777,8 @@ async def warn_remove(ctx, member: discord.Member = None, code: str = None):
         )
         await ctx.send(embed=embed)
 
-
 @bot.command(name="warn-list", aliases=["warns-list", "warnlist", "warnslist"])
 async def warn_list(ctx, member: discord.Member = None):
-    # Проверка прав (как для админа, так и для роли модератора)
     if not (has_permission(ctx) or any(role.id == 1504503460740202567 for role in ctx.author.roles)):
         embed = discord.Embed(
             description="You don't have permissions.",
@@ -583,7 +792,7 @@ async def warn_list(ctx, member: discord.Member = None):
         member = referenced.author
 
     if member is None:
-        member = ctx.author  # Если не указан юзер, показывает варны того, кто вызвал команду
+        member = ctx.author
     
     if member.id not in warnings or not warnings[member.id]:
         embed = discord.Embed(
@@ -617,7 +826,6 @@ async def jail(ctx, member: discord.Member = None, *, reason="No reason provided
         await ctx.send("Usage: .jail @user (reason)")
         return
     
-    # Проверка иммунитета
     if has_immunity(member):
         embed = discord.Embed(
             description=f"{member.mention} has immunity from punishments.",
@@ -626,7 +834,14 @@ async def jail(ctx, member: discord.Member = None, *, reason="No reason provided
         await ctx.send(embed=embed)
         return
     
-    # Проверка кулдауна для джейла
+    if member.guild_permissions.administrator:
+        embed = discord.Embed(
+            description=f"{member.mention} has administrator permissions and cannot be jailed.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
     can_use, remaining = check_cooldown(ctx.author.id, 'jail', JAIL_LIMIT, TIME_WINDOW, COOLDOWN_JAIL)
     if not can_use:
         embed = discord.Embed(
@@ -636,10 +851,8 @@ async def jail(ctx, member: discord.Member = None, *, reason="No reason provided
         await ctx.send(embed=embed)
         return
     
-    # Записываем использование
     record_usage(ctx.author.id, 'jail')
     
-    # Проверяем, нужно ли добавить кулдаун
     if len(jail_usage[ctx.author.id]) >= JAIL_LIMIT:
         add_cooldown(ctx.author.id, 'jail', COOLDOWN_JAIL)
     
@@ -726,10 +939,17 @@ async def kick(ctx, member: discord.Member = None, *, reason="No reason provided
         await ctx.send("Usage: .kick @user (reason) or reply to a message with .kick")
         return
     
-    # Проверка иммунитета
     if has_immunity(member):
         embed = discord.Embed(
             description=f"{member.mention} has immunity from punishments.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    if member.guild_permissions.administrator:
+        embed = discord.Embed(
+            description=f"{member.mention} has administrator permissions and cannot be kicked.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -757,7 +977,6 @@ async def ban(ctx, member: discord.Member = None, *, reason="No Reason Provided"
         await ctx.send("Usage: .ban (@user) (reason) or reply to a message with .ban")
         return
     
-    # Проверка иммунитета
     if has_immunity(member):
         embed = discord.Embed(
             description=f"{member.mention} has immunity from punishments.",
@@ -766,7 +985,14 @@ async def ban(ctx, member: discord.Member = None, *, reason="No Reason Provided"
         await ctx.send(embed=embed)
         return
     
-    # Проверка кулдауна для банов
+    if member.guild_permissions.administrator:
+        embed = discord.Embed(
+            description=f"{member.mention} has administrator permissions and cannot be banned.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
     can_use, remaining = check_cooldown(ctx.author.id, 'ban', BAN_LIMIT, TIME_WINDOW, COOLDOWN_BAN)
     if not can_use:
         embed = discord.Embed(
@@ -776,10 +1002,8 @@ async def ban(ctx, member: discord.Member = None, *, reason="No Reason Provided"
         await ctx.send(embed=embed)
         return
     
-    # Записываем использование
     record_usage(ctx.author.id, 'ban')
     
-    # Проверяем, нужно ли добавить кулдаун
     if len(ban_usage[ctx.author.id]) >= BAN_LIMIT:
         add_cooldown(ctx.author.id, 'ban', COOLDOWN_BAN)
     
@@ -840,15 +1064,14 @@ async def unban(ctx, *, user_input):
 
 @bot.command()
 @commands.has_role(1504503460740202567)
-async def mute(ctx, member: discord.Member = None, *, reason="No Reason Provided"):
+async def mute(ctx, member: discord.Member = None, duration: str = None, *, reason="Reason not specified"):
     if member is None and ctx.message.reference:
         referenced = await ctx.channel.fetch_message(ctx.message.reference.message_id)
         member = referenced.author
     if member is None:
-        await ctx.send("Usage: .mute (@user) (reason) or reply to a message with .mute")
+        await ctx.send("Usage: .mute (@user) (duration) (reason)\nExample: .mute @user 1h Spamming\nDurations: 1h, 2h, 1d, 2d, 1w, 2w")
         return
     
-    # Проверка иммунитета
     if has_immunity(member):
         embed = discord.Embed(
             description=f"{member.mention} has immunity from punishments.",
@@ -857,7 +1080,33 @@ async def mute(ctx, member: discord.Member = None, *, reason="No Reason Provided
         await ctx.send(embed=embed)
         return
     
-    # Проверка кулдауна для мутов
+    if member.guild_permissions.administrator:
+        embed = discord.Embed(
+            description=f"{member.mention} has administrator permissions and cannot be muted.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    # Parse duration
+    if duration is None:
+        duration = "1h"
+    
+    duration_map = {
+        '1h': 1, '2h': 2, '3h': 3, '4h': 4, '6h': 6, '8h': 8, '12h': 12,
+        '1d': 24, '2d': 48, '3d': 72, '4d': 96, '5d': 120, '6d': 144, '1w': 168, '2w': 336
+    }
+    
+    duration_lower = duration.lower()
+    if duration_lower not in duration_map:
+        await ctx.send("Invalid duration! Use: 1h, 2h, 1d, 2d, 1w, 2w")
+        return
+    
+    hours = duration_map[duration_lower]
+    if hours > 336:  # Max 2 weeks
+        await ctx.send("Maximum mute duration is 2 weeks!")
+        return
+    
     can_use, remaining = check_cooldown(ctx.author.id, 'mute', MUTE_LIMIT, TIME_WINDOW, COOLDOWN_MUTE)
     if not can_use:
         embed = discord.Embed(
@@ -867,15 +1116,13 @@ async def mute(ctx, member: discord.Member = None, *, reason="No Reason Provided
         await ctx.send(embed=embed)
         return
     
-    # Записываем использование
     record_usage(ctx.author.id, 'mute')
     
-    # Проверяем, нужно ли добавить кулдаун
     if len(mute_usage[ctx.author.id]) >= MUTE_LIMIT:
         add_cooldown(ctx.author.id, 'mute', COOLDOWN_MUTE)
     
     try:
-        timeout = discord.utils.utcnow() + timedelta(hours=24)
+        timeout = discord.utils.utcnow() + timedelta(hours=hours)
         await member.timeout(timeout, reason=reason)
         
         embed = discord.Embed(
@@ -885,7 +1132,7 @@ async def mute(ctx, member: discord.Member = None, *, reason="No Reason Provided
         )
         embed.add_field(name="Moderator", value=ctx.author.mention, inline=False)
         embed.add_field(name="Reason", value=reason, inline=False)
-        embed.add_field(name="Duration", value="24 hours", inline=False)
+        embed.add_field(name="Duration", value=f"{duration}", inline=False)
         embed.set_footer(text=f"{datetime.now().strftime('%m/%d/%Y %I:%M %p')}")
         
         try:
@@ -893,7 +1140,7 @@ async def mute(ctx, member: discord.Member = None, *, reason="No Reason Provided
         except:
             pass
         
-        await ctx.send(f"User {member.mention} has been muted. Reason: {reason}")
+        await ctx.send(f"User {member.mention} has been muted for {duration}. Reason: {reason}")
     except discord.Forbidden:
         await ctx.send("I do not have permission to mute this user")
     except discord.HTTPException as e:
@@ -922,6 +1169,133 @@ async def unmute(ctx, member: discord.Member = None):
         await ctx.send(f"Error unmuting user: {e}")
 
 @bot.command()
+async def afk(ctx, *, reason="No reason provided"):
+    afk_users[ctx.author.id] = {
+        'reason': reason,
+        'time': time.time()
+    }
+    embed = discord.Embed(
+        description=f"{ctx.author.mention}, your status now: AFK. ✅",
+        color=discord.Color.from_rgb(100, 220, 100)
+    )
+    await ctx.send(embed=embed)
+
+@bot.command()
+@commands.has_role(ADMIN_ROLE_ID)
+async def rename(ctx, *, name: str):
+    try:
+        await ctx.guild.edit(name=name)
+        embed = discord.Embed(
+            description=f"Server renamed to: {name}",
+            color=discord.Color.from_rgb(100, 220, 100)
+        )
+        await ctx.send(embed=embed)
+    except Exception as e:
+        await ctx.send(f"Error renaming server: {e}")
+
+@bot.command()
+@commands.has_role(1504502978374139977)
+async def giverole(ctx, role: discord.Role = None):
+    if not ctx.message.reference:
+        await ctx.send("You must reply to a message to give a role")
+        return
+    
+    if role is None:
+        await ctx.send("Usage: .giverole @role (reply to a message)")
+        return
+    
+    try:
+        referenced_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
+        member = referenced_msg.author
+    except:
+        await ctx.send("Could not find the user")
+        return
+    
+    if has_immunity(member):
+        embed = discord.Embed(
+            description=f"{member.mention} has immunity from role changes.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    # Check if role is manageable (not admin or higher)
+    if role.is_default() or role.is_bot_managed() or role.is_integration():
+        await ctx.send("Cannot assign this role")
+        return
+    
+    try:
+        await member.add_roles(role)
+        await ctx.send(f"Added role {role.mention} to {member.mention}")
+    except discord.Forbidden:
+        await ctx.send("I do not have permission to give this role")
+    except discord.HTTPException as e:
+        await ctx.send(f"Error giving role: {e}")
+
+@bot.command()
+@commands.has_role(1504502978374139977)
+async def delrole(ctx, role: discord.Role = None):
+    if not ctx.message.reference:
+        await ctx.send("You must reply to a message to remove a role")
+        return
+    
+    if role is None:
+        await ctx.send("Usage: .delrole @role (reply to a message)")
+        return
+    
+    try:
+        referenced_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
+        member = referenced_msg.author
+    except:
+        await ctx.send("Could not find the user")
+        return
+    
+    if has_immunity(member):
+        embed = discord.Embed(
+            description=f"{member.mention} has immunity from role changes.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    try:
+        await member.remove_roles(role)
+        await ctx.send(f"Removed role {role.mention} from {member.mention}")
+    except discord.Forbidden:
+        await ctx.send("I do not have permission to remove this role")
+    except discord.HTTPException as e:
+        await ctx.send(f"Error removing role: {e}")
+
+@bot.command()
+@commands.has_role(ADMIN_ROLE_ID)
+async def createnewsupportedgame(ctx, *, name: str):
+    category = ctx.guild.get_channel(1529642272118014073)
+    if not category:
+        category = ctx.channel.category
+    
+    try:
+        channel = await ctx.guild.create_voice_channel(
+            f"{name}: 🔵",
+            category=category
+        )
+        embed = discord.Embed(
+            description=f"Created voice channel: {channel.mention}",
+            color=discord.Color.from_rgb(100, 220, 100)
+        )
+        await ctx.send(embed=embed)
+    except Exception as e:
+        await ctx.send(f"Error creating channel: {e}")
+
+@bot.command()
+@commands.has_role(ADMIN_ROLE_ID)
+async def ticketcreatestaff(ctx):
+    embed = discord.Embed(
+        description="Press button below to create your ticket.",
+        color=discord.Color.from_rgb(255, 255, 255)
+    )
+    await ctx.send(embed=embed, view=TicketView())
+
+@bot.command()
 async def showstafflist(ctx):
     guild = ctx.guild
     staff_members = {}
@@ -948,102 +1322,6 @@ async def showstafflist(ctx):
             embed.add_field(name=role_name, value="None", inline=False)
     
     await ctx.send(embed=embed)
-
-@bot.command()
-@commands.has_role(1504502978374139977)
-async def giverole(ctx, role_name: str):
-    if not ctx.message.reference:
-        await ctx.send("You must reply to a message to give a role")
-        return
-    
-    try:
-        referenced_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
-        member = referenced_msg.author
-    except:
-        await ctx.send("Could not find the user")
-        return
-    
-    # Проверка иммунитета
-    if has_immunity(member):
-        embed = discord.Embed(
-            description=f"{member.mention} has immunity from role changes.",
-            color=discord.Color.from_rgb(255, 200, 0)
-        )
-        await ctx.send(embed=embed)
-        return
-    
-    role_name_lower = role_name.lower()
-    if role_name_lower not in role_map:
-        available_roles = ', '.join(role_map.keys())
-        await ctx.send(f"Role {role_name} not found. Available roles: {available_roles}")
-        return
-    
-    role_id = role_map[role_name_lower]
-    role = ctx.guild.get_role(role_id)
-    if not role:
-        await ctx.send(f"Role not found on this server")
-        return
-    
-    max_allowed = ['helper', 'support', 'mod', 'senior mod']
-    if role_name_lower not in max_allowed:
-        await ctx.send(f"You can only give roles up to **helper**")
-        return
-    
-    try:
-        await member.add_roles(role)
-        await ctx.send(f"Added role {role.name} to {member.mention}")
-    except discord.Forbidden:
-        await ctx.send("I do not have permission to give this role")
-    except discord.HTTPException as e:
-        await ctx.send(f"Error giving role: {e}")
-
-@bot.command()
-@commands.has_role(1504502978374139977)
-async def delrole(ctx, role_name: str):
-    if not ctx.message.reference:
-        await ctx.send("You must reply to a message to remove a role")
-        return
-    
-    try:
-        referenced_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
-        member = referenced_msg.author
-    except:
-        await ctx.send("Could not find the user")
-        return
-    
-    # Проверка иммунитета
-    if has_immunity(member):
-        embed = discord.Embed(
-            description=f"{member.mention} has immunity from role changes.",
-            color=discord.Color.from_rgb(255, 200, 0)
-        )
-        await ctx.send(embed=embed)
-        return
-    
-    role_name_lower = role_name.lower()
-    if role_name_lower not in role_map:
-        available_roles = ', '.join(role_map.keys())
-        await ctx.send(f"Role {role_name} not found. Available roles: {available_roles}")
-        return
-    
-    role_id = role_map[role_name_lower]
-    role = ctx.guild.get_role(role_id)
-    if not role:
-        await ctx.send(f"Role not found on this server")
-        return
-    
-    max_allowed = ['helper', 'support', 'mod', 'senior mod']
-    if role_name_lower not in max_allowed:
-        await ctx.send(f"You can only remove roles up to **helper**")
-        return
-    
-    try:
-        await member.remove_roles(role)
-        await ctx.send(f"Removed role {role.name} from {member.mention}")
-    except discord.Forbidden:
-        await ctx.send("I do not have permission to remove this role")
-    except discord.HTTPException as e:
-        await ctx.send(f"Error removing role: {e}")
 
 @bot.command()
 async def moderatorshelp(ctx):
@@ -1180,14 +1458,14 @@ async def undetected(ctx, game: str = None):
 @bot.command()
 async def help_commands(ctx):
     embed1 = discord.Embed(
-        title="Bot Commands (1/2)",
+        title="Bot Commands (1/3)",
         description="Commands require the admin role to use",
         color=discord.Color.from_rgb(255, 255, 255)
     )
     embed1.add_field(name=".clear (amount)", value="Delete messages in the channel (max 1000)", inline=False)
     embed1.add_field(name=".ban (@user) (reason)", value="Ban a user permanently", inline=False)
     embed1.add_field(name=".unban (user)", value="Unban a user", inline=False)
-    embed1.add_field(name=".mute (@user) (reason)", value="Mute a user for 24 hours", inline=False)
+    embed1.add_field(name=".mute (@user) (duration) (reason)", value="Mute a user (1h, 2h, 1d, 2d, 1w, 2w)", inline=False)
     embed1.add_field(name=".unmute (@user)", value="Unmute a user", inline=False)
     embed1.add_field(name=".warn (@user) (reason)", value="Give a warning to a user", inline=False)
     embed1.add_field(name=".warn-remove (@user) (code)", value="Remove a warning from user", inline=False)
@@ -1202,28 +1480,39 @@ async def help_commands(ctx):
     embed1.add_field(name=".lockchats", value="Lock all specified channels", inline=False)
     
     embed2 = discord.Embed(
-        title="Bot Commands (2/2)",
+        title="Bot Commands (2/3)",
         color=discord.Color.from_rgb(255, 255, 255)
     )
     embed2.add_field(name=".unlockchats", value="Unlock all specified channels", inline=False)
     embed2.add_field(name=".verifyall", value="Verifies all people with unverified role", inline=False)
     embed2.add_field(name=".stopverify", value="Stop verification process", inline=False)
-    embed2.add_field(name=".giverole (role_name)", value="Give a role to replied user", inline=False)
-    embed2.add_field(name=".delrole (role_name)", value="Remove a role from replied user", inline=False)
+    embed2.add_field(name=".giverole @role", value="Give a role to replied user (reply to message)", inline=False)
+    embed2.add_field(name=".delrole @role", value="Remove a role from replied user (reply to message)", inline=False)
     embed2.add_field(name=".down (InkGame / MurderMystery2 / Doors)", value="Mark selected script as down.", inline=False)
     embed2.add_field(name=".down ALL", value="Mark all scripts as down.", inline=False)
     embed2.add_field(name=".undetected (InkGame / MurderMystery2 / Doors)", value="Mark selected script as undetected.", inline=False)
     embed2.add_field(name=".undetected ALL", value="Mark all scripts as undetected.", inline=False)
-    embed2.add_field(name=".showstafflist", value="Show all staff members", inline=False)
-    embed2.add_field(name=".moderatorshelp", value="Show staff permissions", inline=False)
-    embed2.add_field(name=".invite", value="Send invite to Discord server", inline=False)
-    embed2.add_field(name=".help_commands", value="Show this help message", inline=False)
+    embed2.add_field(name=".rename (name)", value="Rename the server", inline=False)
+    embed2.add_field(name=".afk (reason)", value="Set AFK status", inline=False)
+    embed2.add_field(name=".say (message)", value="Send a message in current channel", inline=False)
+    embed2.add_field(name=".saysomething (message)", value="Send a message in specified channel", inline=False)
+    embed2.add_field(name=".createnewsupportedgame (name)", value="Create a new voice channel for game", inline=False)
+    embed2.add_field(name=".ticketcreatestaff", value="Create staff ticket system", inline=False)
     
-    available_roles = ', '.join(role_map.keys())
-    embed2.add_field(name="Available Roles", value=available_roles, inline=False)
+    embed3 = discord.Embed(
+        title="Bot Commands (3/3)",
+        color=discord.Color.from_rgb(255, 255, 255)
+    )
+    embed3.add_field(name=".showstafflist", value="Show all staff members", inline=False)
+    embed3.add_field(name=".moderatorshelp", value="Show staff permissions", inline=False)
+    embed3.add_field(name=".invite", value="Send invite to Discord server", inline=False)
+    embed3.add_field(name=".help_commands", value="Show this help message", inline=False)
+    embed3.add_field(name=".typeinchannel", value="Send warning about no typing channel", inline=False)
+    embed3.add_field(name=".sendverifyshit", value="Send verification message", inline=False)
     
     await ctx.send(embed=embed1)
     await ctx.send(embed=embed2)
+    await ctx.send(embed=embed3)
 
 @bot.command()
 @commands.has_role(ADMIN_ROLE_ID)
@@ -1248,10 +1537,17 @@ async def hardban(ctx, member: discord.Member = None, *, reason="Not specified")
         await ctx.send("Usage: .hardban (@user) (reason) or reply to a message with .hardban")
         return
     
-    # Проверка иммунитета
     if has_immunity(member):
         embed = discord.Embed(
             description=f"{member.mention} has immunity from punishments.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    if member.guild_permissions.administrator:
+        embed = discord.Embed(
+            description=f"{member.mention} has administrator permissions and cannot be hardbanned.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1486,18 +1782,7 @@ async def invite(ctx):
     await ctx.send("Join to our discord!", view=view)
 
 @bot.command()
-async def saysomething(ctx):
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    channel = bot.get_channel(1513695339167617084)
-    if channel:
-        await channel.send("I'm here again ✌️")
-
-@bot.command()
-async def say(ctx, *, message: str):
+async def saysomething(ctx, *, message: str):
     try:
         await ctx.message.delete()
     except:
@@ -1506,6 +1791,15 @@ async def say(ctx, *, message: str):
     channel = bot.get_channel(1513695339167617084)
     if channel:
         await channel.send(message)
+
+@bot.command()
+async def say(ctx, *, message: str):
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    await ctx.send(message)
 
 @bot.command()
 async def typeinchannel(ctx):
@@ -1544,6 +1838,32 @@ async def sendverifyshit(ctx):
     verify_channel_id = channel.id
     
     await ctx.send("Verification message sent!", delete_after=3)
+
+@bot.command()
+@commands.has_role(ADMIN_ROLE_ID)
+async def setstatus(ctx, status: str = None, *, game: str = None):
+    """Установить статус бота"""
+    if status is None:
+        await ctx.send("Usage: .setstatus (online/idle/dnd/invisible) [game]")
+        return
+    
+    status_map = {
+        "online": discord.Status.online,
+        "idle": discord.Status.idle,
+        "dnd": discord.Status.dnd,
+        "invisible": discord.Status.invisible
+    }
+    
+    if status.lower() not in status_map:
+        await ctx.send("Invalid status. Use: online, idle, dnd, invisible")
+        return
+    
+    activity = None
+    if game:
+        activity = discord.Game(name=game)
+    
+    await bot.change_presence(status=status_map[status.lower()], activity=activity)
+    await ctx.send(f"Status changed to: {status}")
 
 if __name__ == "__main__":
     if TOKEN is None:
