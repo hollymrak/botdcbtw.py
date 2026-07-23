@@ -213,10 +213,14 @@ def format_afk_time(start_time):
 
 def save_warnings():
     try:
+        # Конвертируем defaultdict в обычный dict для JSON
+        warnings_dict = {}
+        for key, value in warnings.items():
+            warnings_dict[str(key)] = value
         with open('warnings.json', 'w') as f:
-            json.dump(dict(warnings), f)
-    except:
-        pass
+            json.dump(warnings_dict, f)
+    except Exception as e:
+        print(f"Error saving warnings: {e}")
 
 def load_warnings():
     global warnings, user_warnings
@@ -226,8 +230,10 @@ def load_warnings():
             for user_id, warns in data.items():
                 warnings[int(user_id)] = warns
                 user_warnings[int(user_id)] = len(warns)
-    except:
+    except FileNotFoundError:
         pass
+    except Exception as e:
+        print(f"Error loading warnings: {e}")
 
 # Ticket Views
 class TicketView(View):
@@ -511,23 +517,43 @@ async def warn_user_auto(message, reason, moderator="Auto-Mod"):
     
     return warn_code
 
-async def warn_user(message, reason, moderator=None):
-    if has_immunity(message.author):
-        embed = discord.Embed(
-            description=f"{message.author.mention} has immunity from punishments.",
-            color=discord.Color.from_rgb(255, 200, 0)
-        )
-        await message.channel.send(embed=embed)
+async def warn_user(target, reason, moderator=None, ctx=None):
+    # Проверяем, что это пользователь (не сообщение)
+    if hasattr(target, 'author'):
+        # Это сообщение
+        member = target.author
+        channel = target.channel
+    else:
+        # Это участник
+        member = target
+        channel = ctx.channel if ctx else None
+    
+    if has_immunity(member):
+        if channel:
+            embed = discord.Embed(
+                description=f"{member.mention} has immunity from punishments.",
+                color=discord.Color.from_rgb(255, 200, 0)
+            )
+            await channel.send(embed=embed)
+        return None
+    
+    if member.guild_permissions.administrator:
+        if channel:
+            embed = discord.Embed(
+                description=f"{member.mention} has administrator permissions and cannot be warned.",
+                color=discord.Color.from_rgb(255, 200, 0)
+            )
+            await channel.send(embed=embed)
         return None
     
     warn_code = generate_warn_code()
-    user_warnings[message.author.id] += 1
-    warn_count = user_warnings[message.author.id]
+    user_warnings[member.id] += 1
+    warn_count = user_warnings[member.id]
     
-    if message.author.id not in warnings:
-        warnings[message.author.id] = []
+    if member.id not in warnings:
+        warnings[member.id] = []
     
-    warnings[message.author.id].append({
+    warnings[member.id].append({
         'code': warn_code,
         'reason': reason,
         'moderator': moderator or "Auto-Mod",
@@ -548,19 +574,20 @@ async def warn_user(message, reason, moderator=None):
     embed.set_footer(text=f"{datetime.now().strftime('%m/%d/%Y %I:%M %p')}")
     
     try:
-        await message.author.send(embed=embed)
+        await member.send(embed=embed)
     except:
         pass
     
-    embed_channel = discord.Embed(
-        description=f"{message.author.mention} has been warned for {reason} #{warn_count}/5\nCode: {warn_code}",
-        color=discord.Color.from_rgb(255, 180, 50)
-    )
-    await message.channel.send(embed=embed_channel)
+    if channel:
+        embed_channel = discord.Embed(
+            description=f"{member.mention} has been warned for {reason} #{warn_count}/5\nCode: {warn_code}",
+            color=discord.Color.from_rgb(255, 180, 50)
+        )
+        await channel.send(embed=embed_channel)
     
     if warn_count >= 5:
         try:
-            await message.author.ban(reason="5 warnings - automatic ban")
+            await member.ban(reason="5 warnings - automatic ban")
             
             embed_ban = discord.Embed(
                 title="Banned",
@@ -573,15 +600,16 @@ async def warn_user(message, reason, moderator=None):
             embed_ban.set_footer(text=f"{datetime.now().strftime('%m/%d/%Y %I:%M %p')}")
             
             try:
-                await message.author.send(embed=embed_ban)
+                await member.send(embed=embed_ban)
             except:
                 pass
             
-            embed_channel_ban = discord.Embed(
-                description=f"{message.author.mention} has been banned for violating rules. #5/5",
-                color=discord.Color.from_rgb(220, 80, 80)
-            )
-            await message.channel.send(embed=embed_channel_ban)
+            if channel:
+                embed_channel_ban = discord.Embed(
+                    description=f"{member.mention} has been banned for violating rules. #5/5",
+                    color=discord.Color.from_rgb(220, 80, 80)
+                )
+                await channel.send(embed=embed_channel_ban)
         except Exception as e:
             print(f'Ban error: {e}')
     
@@ -675,7 +703,14 @@ async def on_command_error(ctx, error):
                 color=discord.Color.from_rgb(255, 200, 0)
             )
             await ctx.send(embed=embed)
+    elif isinstance(error, commands.MemberNotFound):
+        embed = discord.Embed(
+            description="User not found! Make sure to ping or use correct ID.",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
     else:
+        print(f"Error: {error}")
         raise error
 
 @bot.command()
@@ -684,10 +719,20 @@ async def warn(ctx, member: discord.Member = None, *, args=None):
     if member is None and ctx.message.reference:
         referenced = await ctx.channel.fetch_message(ctx.message.reference.message_id)
         member = referenced.author
+    
     if member is None:
         embed = discord.Embed(
             description="Usage\n.warn <@Member | ID> [reason]\n┗ Member parameter may be replaced with the author of the replied message.\n\nExample 1\n.warn @Member\n┗ Gives empty warning.\n\nExample 2\n.warn @Member behaves provocatively\n┗ Gives warning with specified reason.",
             color=discord.Color.from_rgb(255, 255, 255)
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    # Проверка на самого себя
+    if member.id == ctx.author.id:
+        embed = discord.Embed(
+            description="You cannot warn yourself!",
+            color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
         return
@@ -700,7 +745,6 @@ async def warn(ctx, member: discord.Member = None, *, args=None):
         await ctx.send(embed=embed)
         return
     
-    # Check if user has admin perms
     if member.guild_permissions.administrator:
         embed = discord.Embed(
             description=f"{member.mention} has administrator permissions and cannot be warned.",
@@ -724,7 +768,7 @@ async def warn(ctx, member: discord.Member = None, *, args=None):
         add_cooldown(ctx.author.id, 'warn', COOLDOWN_WARN)
     
     reason = args or "No reason provided"
-    await warn_user(member, reason, ctx.author.mention)
+    await warn_user(member, reason, ctx.author.mention, ctx)
 
 @bot.command(name="warn-remove", aliases=["warnremove"])
 async def warn_remove(ctx, member: discord.Member = None, code: str = None):
@@ -824,6 +868,15 @@ async def jail(ctx, member: discord.Member = None, *, reason="No reason provided
         member = referenced.author
     if member is None:
         await ctx.send("Usage: .jail @user (reason)")
+        return
+    
+    # Проверка на самого себя
+    if member.id == ctx.author.id:
+        embed = discord.Embed(
+            description="You cannot jail yourself!",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
         return
     
     if has_immunity(member):
@@ -939,6 +992,15 @@ async def kick(ctx, member: discord.Member = None, *, reason="No reason provided
         await ctx.send("Usage: .kick @user (reason) or reply to a message with .kick")
         return
     
+    # Проверка на самого себя
+    if member.id == ctx.author.id:
+        embed = discord.Embed(
+            description="You cannot kick yourself!",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
     if has_immunity(member):
         embed = discord.Embed(
             description=f"{member.mention} has immunity from punishments.",
@@ -975,6 +1037,15 @@ async def ban(ctx, member: discord.Member = None, *, reason="No Reason Provided"
         member = referenced.author
     if member is None:
         await ctx.send("Usage: .ban (@user) (reason) or reply to a message with .ban")
+        return
+    
+    # Проверка на самого себя
+    if member.id == ctx.author.id:
+        embed = discord.Embed(
+            description="You cannot ban yourself!",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
         return
     
     if has_immunity(member):
@@ -1070,6 +1141,15 @@ async def mute(ctx, member: discord.Member = None, duration: str = None, *, reas
         member = referenced.author
     if member is None:
         await ctx.send("Usage: .mute (@user) (duration) (reason)\nExample: .mute @user 1h Spamming\nDurations: 1h, 2h, 1d, 2d, 1w, 2w")
+        return
+    
+    # Проверка на самого себя
+    if member.id == ctx.author.id:
+        embed = discord.Embed(
+            description="You cannot mute yourself!",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
         return
     
     if has_immunity(member):
@@ -1194,7 +1274,7 @@ async def rename(ctx, *, name: str):
         await ctx.send(f"Error renaming server: {e}")
 
 @bot.command()
-@commands.has_role(1504502978374139977)
+@commands.has_any_role(1504502978374139977, 1508790828448092211, 1504503217382232166, 1508782838600830996, 1504503460740202567)
 async def giverole(ctx, role: discord.Role = None):
     if not ctx.message.reference:
         await ctx.send("You must reply to a message to give a role")
@@ -1211,6 +1291,15 @@ async def giverole(ctx, role: discord.Role = None):
         await ctx.send("Could not find the user")
         return
     
+    # Проверка на самого себя
+    if member.id == ctx.author.id:
+        embed = discord.Embed(
+            description="You cannot give roles to yourself!",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
     if has_immunity(member):
         embed = discord.Embed(
             description=f"{member.mention} has immunity from role changes.",
@@ -1219,13 +1308,21 @@ async def giverole(ctx, role: discord.Role = None):
         await ctx.send(embed=embed)
         return
     
-    # Check if role is manageable (not admin or higher)
-    if role.is_default() or role.is_bot_managed() or role.is_integration():
-        await ctx.send("Cannot assign this role")
+    # Проверяем, может ли пользователь выдавать эту роль
+    author_top_role = ctx.author.top_role.position
+    role_position = role.position
+    bot_top_role = ctx.guild.me.top_role.position
+    
+    if role_position >= bot_top_role:
+        await ctx.send("I cannot give this role because it's above my highest role!")
+        return
+    
+    if role_position >= author_top_role:
+        await ctx.send("You cannot give this role because it's above your highest role!")
         return
     
     try:
-        await member.add_roles(role)
+        await member.add_roles(role, reason=f"Given by {ctx.author}")
         await ctx.send(f"Added role {role.mention} to {member.mention}")
     except discord.Forbidden:
         await ctx.send("I do not have permission to give this role")
@@ -1233,7 +1330,7 @@ async def giverole(ctx, role: discord.Role = None):
         await ctx.send(f"Error giving role: {e}")
 
 @bot.command()
-@commands.has_role(1504502978374139977)
+@commands.has_any_role(1504502978374139977, 1508790828448092211, 1504503217382232166, 1508782838600830996, 1504503460740202567)
 async def delrole(ctx, role: discord.Role = None):
     if not ctx.message.reference:
         await ctx.send("You must reply to a message to remove a role")
@@ -1258,8 +1355,21 @@ async def delrole(ctx, role: discord.Role = None):
         await ctx.send(embed=embed)
         return
     
+    # Проверяем, может ли пользователь снимать эту роль
+    author_top_role = ctx.author.top_role.position
+    role_position = role.position
+    bot_top_role = ctx.guild.me.top_role.position
+    
+    if role_position >= bot_top_role:
+        await ctx.send("I cannot remove this role because it's above my highest role!")
+        return
+    
+    if role_position >= author_top_role:
+        await ctx.send("You cannot remove this role because it's above your highest role!")
+        return
+    
     try:
-        await member.remove_roles(role)
+        await member.remove_roles(role, reason=f"Removed by {ctx.author}")
         await ctx.send(f"Removed role {role.mention} from {member.mention}")
     except discord.Forbidden:
         await ctx.send("I do not have permission to remove this role")
@@ -1535,6 +1645,15 @@ async def hardban(ctx, member: discord.Member = None, *, reason="Not specified")
         member = referenced.author
     if member is None:
         await ctx.send("Usage: .hardban (@user) (reason) or reply to a message with .hardban")
+        return
+    
+    # Проверка на самого себя
+    if member.id == ctx.author.id:
+        embed = discord.Embed(
+            description="You cannot hardban yourself!",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
         return
     
     if has_immunity(member):
