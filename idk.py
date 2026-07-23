@@ -370,16 +370,26 @@ async def on_message(message):
         await message.channel.send(embed=embed)
         del afk_users[message.author.id]
     
+    # Проверка на # (если начинается с #)
+    if message.content and message.content.startswith('#'):
+        await message.delete()
+        await warn_user_auto(message, "sending messages starting with #")
+        await bot.process_commands(message)
+        return
+    
     # Проверка на спам (4 сообщения за 10 секунд)
     current_time = time.time()
     user_id = message.author.id
     
     # Очищаем старые сообщения
+    if user_id not in user_message_times:
+        user_message_times[user_id] = []
     user_message_times[user_id] = [t for t in user_message_times[user_id] if current_time - t < 10]
     user_message_times[user_id].append(current_time)
     
     # Проверка на 4 сообщения за 10 секунд
     if len(user_message_times[user_id]) >= 4:
+        await message.delete()
         await warn_user_auto(message, "spamming (4 messages in 10 seconds)")
         user_message_times[user_id] = []
         await bot.process_commands(message)
@@ -400,6 +410,7 @@ async def on_message(message):
                 similar_count += 1
         
         if similar_count >= 3:  # 3 одинаковых + текущее = 4
+            await message.delete()
             await warn_user_auto(message, "spamming (4 identical messages in 5 seconds)")
             user_messages[user_id] = []
             await bot.process_commands(message)
@@ -409,12 +420,6 @@ async def on_message(message):
             'content': message.content,
             'time': current_time
         })
-    
-    # Проверка на # (если начинается с #)
-    if message.content and message.content.startswith('#'):
-        await warn_user_auto(message, "sending messages starting with #")
-        await bot.process_commands(message)
-        return
     
     # Check for porn/loadstring links
     if "porn" in message.content.lower() or "loadstring" in message.content.lower():
@@ -495,9 +500,11 @@ async def on_raw_reaction_add(payload):
         print(f'Verify error: {e}')
 
 async def warn_user_auto(message, reason, moderator="Auto-Mod"):
+    # Check if user has admin perms
     if message.author.guild_permissions.administrator:
         return
     
+    # Check immunity
     if has_immunity(message.author):
         return
     
@@ -1301,7 +1308,7 @@ async def rename(ctx, *, name: str):
 async def giverole(ctx, role: discord.Role = None):
     if not ctx.message.reference:
         embed = discord.Embed(
-            description="You must reply to a message to give a role!",
+            description="❌ You must reply to a message to give a role!\nUsage: .giverole @role (reply to a message)",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1309,7 +1316,7 @@ async def giverole(ctx, role: discord.Role = None):
     
     if role is None:
         embed = discord.Embed(
-            description="Usage: .giverole @role (reply to a message)\nExample: .giverole @helper",
+            description="❌ Usage: .giverole @role (reply to a message)\nExample: .giverole @helper",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1320,7 +1327,7 @@ async def giverole(ctx, role: discord.Role = None):
         member = referenced_msg.author
     except:
         embed = discord.Embed(
-            description="Could not find the user you replied to!",
+            description="❌ Could not find the user you replied to!",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1328,7 +1335,7 @@ async def giverole(ctx, role: discord.Role = None):
     
     if member.id == ctx.author.id:
         embed = discord.Embed(
-            description="You cannot give roles to yourself!",
+            description="❌ You cannot give roles to yourself!",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1336,7 +1343,7 @@ async def giverole(ctx, role: discord.Role = None):
     
     if has_immunity(member):
         embed = discord.Embed(
-            description=f"{member.mention} has immunity from role changes.",
+            description=f"❌ {member.mention} has immunity from role changes.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1348,7 +1355,7 @@ async def giverole(ctx, role: discord.Role = None):
     
     if role_position >= bot_top_role:
         embed = discord.Embed(
-            description="I cannot give this role because it's above my highest role!",
+            description="❌ I cannot give this role because it's above my highest role!",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1356,7 +1363,7 @@ async def giverole(ctx, role: discord.Role = None):
     
     if role_position >= author_top_role:
         embed = discord.Embed(
-            description="You cannot give this role because it's above your highest role!",
+            description="❌ You cannot give this role because it's above your highest role!",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1365,19 +1372,19 @@ async def giverole(ctx, role: discord.Role = None):
     try:
         await member.add_roles(role, reason=f"Given by {ctx.author}")
         embed = discord.Embed(
-            description=f"Added role {role.mention} to {member.mention}",
+            description=f"✅ Added role {role.mention} to {member.mention}",
             color=discord.Color.from_rgb(100, 220, 100)
         )
         await ctx.send(embed=embed)
     except discord.Forbidden:
         embed = discord.Embed(
-            description="I do not have permission to give this role!",
+            description="❌ I do not have permission to give this role!",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
     except discord.HTTPException as e:
         embed = discord.Embed(
-            description=f"Error giving role: {e}",
+            description=f"❌ Error giving role: {e}",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1387,7 +1394,7 @@ async def giverole(ctx, role: discord.Role = None):
 async def delrole(ctx, role: discord.Role = None):
     if not ctx.message.reference:
         embed = discord.Embed(
-            description="You must reply to a message to remove a role!",
+            description="❌ You must reply to a message to remove a role!\nUsage: .delrole @role (reply to a message)",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1395,7 +1402,7 @@ async def delrole(ctx, role: discord.Role = None):
     
     if role is None:
         embed = discord.Embed(
-            description="Usage: .delrole @role (reply to a message)\nExample: .delrole @helper",
+            description="❌ Usage: .delrole @role (reply to a message)\nExample: .delrole @helper",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1406,7 +1413,7 @@ async def delrole(ctx, role: discord.Role = None):
         member = referenced_msg.author
     except:
         embed = discord.Embed(
-            description="Could not find the user you replied to!",
+            description="❌ Could not find the user you replied to!",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1414,7 +1421,7 @@ async def delrole(ctx, role: discord.Role = None):
     
     if has_immunity(member):
         embed = discord.Embed(
-            description=f"{member.mention} has immunity from role changes.",
+            description=f"❌ {member.mention} has immunity from role changes.",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1426,7 +1433,7 @@ async def delrole(ctx, role: discord.Role = None):
     
     if role_position >= bot_top_role:
         embed = discord.Embed(
-            description="I cannot remove this role because it's above my highest role!",
+            description="❌ I cannot remove this role because it's above my highest role!",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1434,7 +1441,7 @@ async def delrole(ctx, role: discord.Role = None):
     
     if role_position >= author_top_role:
         embed = discord.Embed(
-            description="You cannot remove this role because it's above your highest role!",
+            description="❌ You cannot remove this role because it's above your highest role!",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1443,19 +1450,19 @@ async def delrole(ctx, role: discord.Role = None):
     try:
         await member.remove_roles(role, reason=f"Removed by {ctx.author}")
         embed = discord.Embed(
-            description=f"Removed role {role.mention} from {member.mention}",
+            description=f"✅ Removed role {role.mention} from {member.mention}",
             color=discord.Color.from_rgb(100, 220, 100)
         )
         await ctx.send(embed=embed)
     except discord.Forbidden:
         embed = discord.Embed(
-            description="I do not have permission to remove this role!",
+            description="❌ I do not have permission to remove this role!",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
     except discord.HTTPException as e:
         embed = discord.Embed(
-            description=f"Error removing role: {e}",
+            description=f"❌ Error removing role: {e}",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1473,12 +1480,12 @@ async def createnewsupportedgame(ctx, *, name: str):
             category=category
         )
         embed = discord.Embed(
-            description=f"Created voice channel: {channel.mention}",
+            description=f"✅ Created voice channel: {channel.mention}",
             color=discord.Color.from_rgb(100, 220, 100)
         )
         await ctx.send(embed=embed)
     except Exception as e:
-        await ctx.send(f"Error creating channel: {e}")
+        await ctx.send(f"❌ Error creating channel: {e}")
 
 @bot.command()
 @commands.has_role(ADMIN_ROLE_ID)
