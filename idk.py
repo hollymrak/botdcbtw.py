@@ -73,7 +73,7 @@ role_map = {
     'ticketssupport': 1509149262334791791,
     'contentcreator': 1508793047230709932,
     'ticketsadmin': 1509149263123320874,
-    'helper': 1504503460740202567,
+    # 'helper': 1504503460740202567, - УДАЛЕН
     'support': 1508782838600830996,
     'mod': 1504503217382232166,
     'senior mod': 1504502978374139977,
@@ -106,6 +106,12 @@ STAFF_ROLES = [
     1508790828448092211,
     1516192523691884816
 ]
+
+# Обновленные роли для команд
+JAIL_ROLES = [1508782838600830996, 1504503217382232166, 1504502978374139977, 1508790828448092211, 1516192523691884816]
+WARN_ROLES = [1508782838600830996, 1504503217382232166, 1504502978374139977, 1508790828448092211, 1516192523691884816]
+WARN_REMOVE_ROLES = [1508782838600830996, 1504503217382232166, 1504502978374139977, 1508790828448092211, 1516192523691884816]
+WARN_LIST_ROLES = [1508782838600830996, 1504503217382232166, 1504502978374139977, 1508790828448092211, 1516192523691884816]
 
 ADMIN_ROLES = [
     1504502759922077776,
@@ -376,13 +382,13 @@ async def on_message(message):
         await message.channel.send(embed=embed)
         del afk_users[message.author.id]
     
-    # Проверка на # (если начинается с #) - НЕ УДАЛЯЕМ СООБЩЕНИЕ
+    # Проверка на # (если начинается с #)
     if message.content and message.content.startswith('#'):
         await warn_user_auto(message, "sending messages starting with #")
         await bot.process_commands(message)
         return
     
-    # Проверка на спам (4 сообщения за 10 секунд) - НЕ УДАЛЯЕМ СООБЩЕНИЯ
+    # Проверка на спам (4 сообщения за 10 секунд)
     current_time = time.time()
     user_id = message.author.id
     
@@ -392,12 +398,12 @@ async def on_message(message):
     user_message_times[user_id].append(current_time)
     
     if len(user_message_times[user_id]) >= 4:
-        await warn_user_auto(message, "spamming (4 messages in 10 seconds)")
+        await warn_user_auto(message, "spamming")
         user_message_times[user_id] = []
         await bot.process_commands(message)
         return
     
-    # Проверка на одинаковые сообщения (4 за 5 секунд) - НЕ УДАЛЯЕМ СООБЩЕНИЯ
+    # Проверка на одинаковые сообщения (4 за 5 секунд)
     if message.content and len(message.content) > 0:
         if user_id not in user_messages:
             user_messages[user_id] = []
@@ -410,7 +416,7 @@ async def on_message(message):
                 similar_count += 1
         
         if similar_count >= 3:
-            await warn_user_auto(message, "spamming (4 identical messages in 5 seconds)")
+            await warn_user_auto(message, "spamming")
             user_messages[user_id] = []
             await bot.process_commands(message)
             return
@@ -420,11 +426,11 @@ async def on_message(message):
             'time': current_time
         })
     
-    # Check for porn/loadstring links - НЕ УДАЛЯЕМ СООБЩЕНИЕ
+    # Check for porn/loadstring links
     if "porn" in message.content.lower() or "loadstring" in message.content.lower():
         allowed_loadstring = 'loadstring(game:HttpGet("https://raw.githubusercontent.com/saosdkjiqwdjuqjudidw/HollyScriptX/refs/heads/main/main.lua"))()'
         if allowed_loadstring not in message.content:
-            await warn_user_auto(message, "sending something stupid, prn links, random scripts")
+            await warn_user_auto(message, "sending prohibited content")
             await bot.process_commands(message)
             return
     
@@ -498,7 +504,7 @@ async def on_raw_reaction_add(payload):
         print(f'❌ Verify error: {e}')
 
 async def warn_user_auto(message, reason, moderator="Auto-Mod"):
-    # Проверка на админа - правильная проверка
+    # Проверка на админа
     if message.author.guild_permissions.administrator:
         print(f"⚠️ {message.author} is admin, skipping warn")
         return
@@ -541,10 +547,10 @@ async def warn_user_auto(message, reason, moderator="Auto-Mod"):
     except Exception as e:
         print(f"❌ Could not send DM to {message.author}: {e}")
     
-    # Отправляем в канал
+    # Отправляем в канал - ЖЕЛТАЯ ПОЛОСКА
     embed_channel = discord.Embed(
         description=f"⚠️ {message.author.mention} you have been warned for **{reason}** #{warn_count}/5\nCode: {warn_code}",
-        color=discord.Color.from_rgb(220, 80, 80)
+        color=discord.Color.from_rgb(255, 180, 50)  # ЖЕЛТЫЙ
     )
     await message.channel.send(embed=embed_channel)
     print(f"✅ Sent channel warn for {message.author}")
@@ -640,7 +646,7 @@ async def warn_user(target, reason, moderator=None, ctx=None):
     if channel:
         embed_channel = discord.Embed(
             description=f"⚠️ {member.mention} has been warned for **{reason}** #{warn_count}/5\nCode: {warn_code}",
-            color=discord.Color.from_rgb(255, 180, 50)
+            color=discord.Color.from_rgb(255, 180, 50)  # ЖЕЛТЫЙ
         )
         await channel.send(embed=embed_channel)
     
@@ -753,8 +759,10 @@ async def on_command_error(ctx, error):
         )
         await ctx.send(embed=embed)
 
+# ---- КОМАНДЫ ----
+
 @bot.command()
-@commands.has_role(1504503460740202567)
+@commands.has_any_role(*WARN_ROLES)
 async def warn(ctx, member: discord.Member = None, *, args=None):
     if member is None and ctx.message.reference:
         referenced = await ctx.channel.fetch_message(ctx.message.reference.message_id)
@@ -810,15 +818,8 @@ async def warn(ctx, member: discord.Member = None, *, args=None):
     await warn_user(member, reason, ctx.author.mention, ctx)
 
 @bot.command(name="warn-remove", aliases=["warnremove"])
+@commands.has_any_role(*WARN_REMOVE_ROLES)
 async def warn_remove(ctx, member: discord.Member = None, code: str = None):
-    if not (has_permission(ctx) or any(role.id == 1504503460740202567 for role in ctx.author.roles)):
-        embed = discord.Embed(
-            description="❌ You don't have permissions.",
-            color=discord.Color.from_rgb(255, 200, 0)
-        )
-        await ctx.send(embed=embed)
-        return
-
     if member is None and ctx.message.reference:
         referenced = await ctx.channel.fetch_message(ctx.message.reference.message_id)
         member = referenced.author
@@ -860,16 +861,9 @@ async def warn_remove(ctx, member: discord.Member = None, code: str = None):
         )
         await ctx.send(embed=embed)
 
-@bot.command(name="warn-list", aliases=["warns-list", "warnlist", "warnslist"])
-async def warn_list(ctx, member: discord.Member = None):
-    if not (has_permission(ctx) or any(role.id == 1504503460740202567 for role in ctx.author.roles)):
-        embed = discord.Embed(
-            description="❌ You don't have permissions.",
-            color=discord.Color.from_rgb(255, 200, 0)
-        )
-        await ctx.send(embed=embed)
-        return
-
+@bot.command(name="warns", aliases=["warns-list", "warnlist"])
+@commands.has_any_role(*WARN_LIST_ROLES)
+async def warns(ctx, member: discord.Member = None):
     if member is None and ctx.message.reference:
         referenced = await ctx.channel.fetch_message(ctx.message.reference.message_id)
         member = referenced.author
@@ -900,7 +894,7 @@ async def warn_list(ctx, member: discord.Member = None):
     await ctx.send(embed=embed)
 
 @bot.command()
-@commands.has_role(1504503460740202567)
+@commands.has_any_role(*JAIL_ROLES)
 async def jail(ctx, member: discord.Member = None, *, reason="No reason provided"):
     if member is None and ctx.message.reference:
         referenced = await ctx.channel.fetch_message(ctx.message.reference.message_id)
@@ -988,7 +982,7 @@ async def jail(ctx, member: discord.Member = None, *, reason="No reason provided
     await ctx.send(embed=embed_channel)
 
 @bot.command()
-@commands.has_role(1504503460740202567)
+@commands.has_any_role(*JAIL_ROLES)
 async def unjail(ctx, member: discord.Member = None):
     if member is None and ctx.message.reference:
         referenced = await ctx.channel.fetch_message(ctx.message.reference.message_id)
@@ -1170,7 +1164,7 @@ async def unban(ctx, *, user_input):
         await ctx.send(f"❌ Error unbanning user: {e}")
 
 @bot.command()
-@commands.has_role(1504503460740202567)
+@commands.has_role(1508782838600830996)
 async def mute(ctx, member: discord.Member = None, duration: str = None, *, reason="Reason not specified"):
     if member is None and ctx.message.reference:
         referenced = await ctx.channel.fetch_message(ctx.message.reference.message_id)
@@ -1308,11 +1302,11 @@ async def rename(ctx, *, name: str):
         await ctx.send(f"❌ Error renaming server: {e}")
 
 @bot.command()
-@commands.has_any_role(1504502978374139977, 1508790828448092211, 1504503217382232166, 1508782838600830996, 1504503460740202567)
+@commands.has_any_role(1504502978374139977, 1508790828448092211, 1504503217382232166, 1508782838600830996)
 async def giverole(ctx, role_name: str = None):
     if not ctx.message.reference:
         embed = discord.Embed(
-            description="❌ You must reply to a message to give a role!\nUsage: .giverole (role_name)\nExample: .giverole helper",
+            description="❌ You must reply to a message to give a role!\nUsage: .giverole (role_name)\nExample: .giverole support",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1320,7 +1314,7 @@ async def giverole(ctx, role_name: str = None):
     
     if role_name is None:
         embed = discord.Embed(
-            description=f"❌ Usage: .giverole (role_name)\nExample: .giverole helper\nAvailable roles: {', '.join(role_map.keys())}",
+            description=f"❌ Usage: .giverole (role_name)\nExample: .giverole support\nAvailable roles: {', '.join(role_map.keys())}",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1372,6 +1366,33 @@ async def giverole(ctx, role_name: str = None):
         await ctx.send(embed=embed)
         return
     
+    # Senior mod (1504502978374139977) может выдавать максимум support (1508782838600830996)
+    # Mod (1504503217382232166) может выдавать максимум support
+    # Support (1508782838600830996) может выдавать только ниже себя
+    author_roles = [r.id for r in ctx.author.roles]
+    max_role_id = None
+    
+    if 1504502978374139977 in author_roles:  # senior mod
+        max_role_id = 1508782838600830996  # support
+    elif 1508790828448092211 in author_roles:  # manager
+        max_role_id = 1508782838600830996  # support
+    elif 1504503217382232166 in author_roles:  # mod
+        max_role_id = 1508782838600830996  # support
+    elif 1508782838600830996 in author_roles:  # support
+        # support может выдавать только роли ниже себя
+        max_role_id = 1504503460740202567  # helper - но helper удален, так что ничего
+    
+    # Проверяем, может ли пользователь выдавать эту роль
+    if max_role_id:
+        max_role = ctx.guild.get_role(max_role_id)
+        if max_role and role.position >= max_role.position:
+            embed = discord.Embed(
+                description=f"❌ You can only give roles up to **{max_role.name}**!",
+                color=discord.Color.from_rgb(255, 200, 0)
+            )
+            await ctx.send(embed=embed)
+            return
+    
     author_top_role = ctx.author.top_role.position
     role_position = role.position
     bot_top_role = ctx.guild.me.top_role.position
@@ -1413,11 +1434,11 @@ async def giverole(ctx, role_name: str = None):
         await ctx.send(embed=embed)
 
 @bot.command()
-@commands.has_any_role(1504502978374139977, 1508790828448092211, 1504503217382232166, 1508782838600830996, 1504503460740202567)
+@commands.has_any_role(1504502978374139977, 1508790828448092211, 1504503217382232166, 1508782838600830996)
 async def delrole(ctx, role_name: str = None):
     if not ctx.message.reference:
         embed = discord.Embed(
-            description="❌ You must reply to a message to remove a role!\nUsage: .delrole (role_name)\nExample: .delrole helper",
+            description="❌ You must reply to a message to remove a role!\nUsage: .delrole (role_name)\nExample: .delrole support",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1425,7 +1446,7 @@ async def delrole(ctx, role_name: str = None):
     
     if role_name is None:
         embed = discord.Embed(
-            description=f"❌ Usage: .delrole (role_name)\nExample: .delrole helper\nAvailable roles: {', '.join(role_map.keys())}",
+            description=f"❌ Usage: .delrole (role_name)\nExample: .delrole support\nAvailable roles: {', '.join(role_map.keys())}",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
@@ -1531,7 +1552,7 @@ async def createnewsupportedgame(ctx, *, name: str):
 
 @bot.command()
 @commands.has_role(ADMIN_ROLE_ID)
-async def ticketcreatestaff(ctx):
+async def ticketscreate(ctx):
     embed = discord.Embed(
         description="Press button below to create your ticket.",
         color=discord.Color.from_rgb(255, 255, 255)
@@ -1567,47 +1588,46 @@ async def showstafflist(ctx):
     await ctx.send(embed=embed)
 
 @bot.command()
-async def moderatorshelp(ctx):
+async def moderatorsinfo(ctx):
     embed = discord.Embed(
-        description="""# read this!! important for this discord server Staff.
+        description="""# 📋 Staff Permissions Guide
 
-this channel is maded to show your Permissions. ( USING OTHER BOTS FOR STAFF COMMANDS NOT ALLOWED )
+**<@&1516192523691884816> Co-Owner**
+- Full server control
 
-<@&1516192523691884816> Role Permissions:
-- You can fully control server even without using this bot.
+**<@&1508790828448092211> Manager**
+- .giverole (max: **support**)
+- All commands below
 
-<@&1508790828448092211> Role Permissions:
-- Access to .giverole (maximum u can give is: **seniormod**)
-- Access to commands from the roles below
+**<@&1504502978374139977> Senior Mod**
+- .giverole (max: **support**)
+- .delrole (max: **support**)
+- Access to audit logs
 
-<@&1504502978374139977> Role Permissions:
-- Access to .giverole or .delrole (maximum u can give is: **helper**
-- Access to audit logs & echo-logs and execution-logs.
+**<@&1504503217382232166> Mod**
+- .giverole (max: **support**)
+- .delrole (max: **support**)
+- All commands below
 
-<@&1504503217382232166> Role Permissions:
-- The same commands with <@&1508782838600830996>
+**<@&1508782838600830996> Support**
+- .ban, .unban
+- .kick
+- .mute, .unmute
+- .jail, .unjail
+- .warn, .warn-remove, .warns
+- Access to audit logs
 
-<@&1508782838600830996> Role Permissions:
-- Access to .ban
-- Access to .unban
-- Access to audit logs & echo-logs.
-
-<@&1504503460740202567>
-- Access to .jail
-- Access to .warn
-- Access to .warn_remove
-- Access to .warns_list
-- Access to audit logs.
-
-# Commands tooltips:
-- .warn (userid/ping) (reason) - warns a user. If user gets 5 warns, hes automatically gets banned from server.
-- .warn-remove (userid/ping) (warn code - u can see it if u type .warns-list) - removes a warning from user.
-- .warns-list (userid/ping) - shows total count of user warnings.
-- .ban (userid/ping) (reason) or reply to a message - bans a user from server permanently.
-- .unban (userid/ping) - unban user from server.
-- .kick (userid/ping) (reason) - kick user from server.
-- .jail (userid) (reason) - jail a user
-- .unjail (userid) (reason) - unjail a user""",
+# 📌 Commands
+`.warn @user [reason]` - Warn a user (5 warns = auto ban)
+`.warn-remove @user #code` - Remove a warning
+`.warns @user` - Show user's warnings
+`.ban @user [reason]` - Ban a user permanently
+`.unban user_id` - Unban a user
+`.kick @user [reason]` - Kick a user
+`.jail @user [reason]` - Jail a user
+`.unjail @user` - Unjail a user
+`.mute @user [duration] [reason]` - Mute user (1h, 2h, 1d, 2d, 1w, 2w)
+`.unmute @user` - Unmute a user""",
         color=discord.Color.from_rgb(255, 255, 255)
     )
     await ctx.send(embed=embed)
@@ -1712,7 +1732,7 @@ async def help_commands(ctx):
     embed1.add_field(name=".unmute (@user)", value="Unmute a user", inline=False)
     embed1.add_field(name=".warn (@user) (reason)", value="Give a warning to a user", inline=False)
     embed1.add_field(name=".warn-remove (@user) (code)", value="Remove a warning from user", inline=False)
-    embed1.add_field(name=".warns-list (@user)", value="Show all warnings of a user", inline=False)
+    embed1.add_field(name=".warns (@user)", value="Show all warnings of a user", inline=False)
     embed1.add_field(name=".hardban (@user) (reason)", value="Hard ban a user (remove all channel access)", inline=False)
     embed1.add_field(name=".unhardban (user)", value="Remove hard ban from a user", inline=False)
     embed1.add_field(name=".jail (@user) (reason)", value="Jail a user", inline=False)
@@ -1740,14 +1760,14 @@ async def help_commands(ctx):
     embed2.add_field(name=".say (message)", value="Send a message in current channel", inline=False)
     embed2.add_field(name=".saysomething (message)", value="Send a message in specified channel", inline=False)
     embed2.add_field(name=".createnewsupportedgame (name)", value="Create a new voice channel for game", inline=False)
-    embed2.add_field(name=".ticketcreatestaff", value="Create staff ticket system", inline=False)
+    embed2.add_field(name=".ticketscreate", value="Create ticket system", inline=False)
     
     embed3 = discord.Embed(
         title="🤖 Bot Commands (3/3)",
         color=discord.Color.from_rgb(255, 255, 255)
     )
     embed3.add_field(name=".showstafflist", value="Show all staff members", inline=False)
-    embed3.add_field(name=".moderatorshelp", value="Show staff permissions", inline=False)
+    embed3.add_field(name=".moderatorsinfo", value="Show staff permissions", inline=False)
     embed3.add_field(name=".invite", value="Send invite to Discord server", inline=False)
     embed3.add_field(name=".help_commands", value="Show this help message", inline=False)
     embed3.add_field(name=".typeinchannel", value="Send warning about no typing channel", inline=False)
