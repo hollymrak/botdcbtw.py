@@ -73,7 +73,6 @@ role_map = {
     'ticketssupport': 1509149262334791791,
     'contentcreator': 1508793047230709932,
     'ticketsadmin': 1509149263123320874,
-    # 'helper': 1504503460740202567, - УДАЛЕН
     'support': 1508782838600830996,
     'mod': 1504503217382232166,
     'senior mod': 1504502978374139977,
@@ -132,7 +131,7 @@ ALL_STAFF_ROLES = [
 ]
 
 def generate_warn_code():
-    return '#' + ''.join(random.choices(string.digits, k=4))
+    return ''.join(random.choices(string.digits, k=4))
 
 def has_permission(ctx):
     if ctx.author.guild_permissions.administrator:
@@ -251,6 +250,10 @@ class DeleteTicketButton(Button):
         super().__init__(label="🗑️ Delete Ticket", style=discord.ButtonStyle.danger)
     
     async def callback(self, interaction: discord.Interaction):
+        # Проверяем что это не бот
+        if interaction.user.bot:
+            return
+        
         if not interaction.user.guild_permissions.administrator:
             embed = discord.Embed(
                 description="❌ You don't have permission to delete this ticket!",
@@ -261,7 +264,10 @@ class DeleteTicketButton(Button):
         
         await interaction.response.send_message("🗑️ Deleting ticket...", ephemeral=True)
         await asyncio.sleep(1)
-        await interaction.channel.delete()
+        try:
+            await interaction.channel.delete()
+        except Exception as e:
+            print(f"Error deleting channel: {e}")
 
 # Ticket Views
 class TicketView(View):
@@ -549,8 +555,8 @@ async def warn_user_auto(message, reason, moderator="Auto-Mod"):
     
     # Отправляем в канал - ЖЕЛТАЯ ПОЛОСКА
     embed_channel = discord.Embed(
-        description=f"⚠️ {message.author.mention} you have been warned for **{reason}** #{warn_count}/5\nCode: {warn_code}",
-        color=discord.Color.from_rgb(255, 180, 50)  # ЖЕЛТЫЙ
+        description=f"⚠️ {message.author.mention} you have been warned for **{reason}** #{warn_count}/5\nCode: `{warn_code}`",
+        color=discord.Color.from_rgb(255, 180, 50)
     )
     await message.channel.send(embed=embed_channel)
     print(f"✅ Sent channel warn for {message.author}")
@@ -645,8 +651,8 @@ async def warn_user(target, reason, moderator=None, ctx=None):
     
     if channel:
         embed_channel = discord.Embed(
-            description=f"⚠️ {member.mention} has been warned for **{reason}** #{warn_count}/5\nCode: {warn_code}",
-            color=discord.Color.from_rgb(255, 180, 50)  # ЖЕЛТЫЙ
+            description=f"⚠️ {member.mention} has been warned for **{reason}** #{warn_count}/5\nCode: `{warn_code}`",
+            color=discord.Color.from_rgb(255, 180, 50)
         )
         await channel.send(embed=embed_channel)
     
@@ -819,47 +825,60 @@ async def warn(ctx, member: discord.Member = None, *, args=None):
 
 @bot.command(name="warn-remove", aliases=["warnremove"])
 @commands.has_any_role(*WARN_REMOVE_ROLES)
-async def warn_remove(ctx, member: discord.Member = None, code: str = None):
-    if member is None and ctx.message.reference:
-        referenced = await ctx.channel.fetch_message(ctx.message.reference.message_id)
-        member = referenced.author
-
-    if member is None or code is None:
+async def warn_remove(ctx, code: str = None):
+    # Проверка что указан код
+    if code is None:
         embed = discord.Embed(
-            description="Usage: .warn-remove @user #1234",
+            description="❌ Usage: .warn-remove <code>\nExample: .warn-remove 1234",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
         return
     
-    if member.id not in warnings or not warnings[member.id]:
-        embed = discord.Embed(
-            description=f"{member.mention} has no warnings.",
-            color=discord.Color.from_rgb(255, 200, 0)
-        )
-        await ctx.send(embed=embed)
-        return
+    # Ищем пользователя с таким кодом варна
+    found_user = None
+    found_warn = None
     
-    removed = False
-    for warn in list(warnings[member.id]):
-        if warn['code'] == code:
-            warnings[member.id].remove(warn)
-            user_warnings[member.id] = max(0, user_warnings[member.id] - 1)
-            removed = True
-            save_warnings()
-            embed = discord.Embed(
-                description=f"✅ Removed warning {code} from {member.mention}",
-                color=discord.Color.from_rgb(100, 220, 100)
-            )
-            await ctx.send(embed=embed)
+    for user_id, warns in warnings.items():
+        for warn in warns:
+            if warn['code'] == code:
+                found_user = user_id
+                found_warn = warn
+                break
+        if found_user:
             break
     
-    if not removed:
+    if not found_user:
         embed = discord.Embed(
-            description=f"❌ Warning {code} not found for {member.mention}",
+            description=f"❌ Warning code `{code}` not found!",
             color=discord.Color.from_rgb(255, 200, 0)
         )
         await ctx.send(embed=embed)
+        return
+    
+    # Проверка что не удаляешь свой варн
+    if found_user == ctx.author.id:
+        embed = discord.Embed(
+            description="❌ You cannot remove your own warning!",
+            color=discord.Color.from_rgb(255, 200, 0)
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    # Удаляем варн
+    member = ctx.guild.get_member(found_user)
+    if member is None:
+        member = await bot.fetch_user(found_user)
+    
+    warnings[found_user].remove(found_warn)
+    user_warnings[found_user] = max(0, user_warnings[found_user] - 1)
+    save_warnings()
+    
+    embed = discord.Embed(
+        description=f"✅ Removed warning `{code}` from {member.mention if hasattr(member, 'mention') else f'<@{found_user}>'}",
+        color=discord.Color.from_rgb(100, 220, 100)
+    )
+    await ctx.send(embed=embed)
 
 @bot.command(name="warns", aliases=["warns-list", "warnlist"])
 @commands.has_any_role(*WARN_LIST_ROLES)
@@ -886,7 +905,7 @@ async def warns(ctx, member: discord.Member = None):
     
     for i, warn in enumerate(warnings[member.id], 1):
         embed.add_field(
-            name=f"{i}. {warn['code']}",
+            name=f"{i}. `{warn['code']}`",
             value=f"Reason: {warn['reason']}\nModerator: {warn['moderator']}\nDate: {warn['date']}",
             inline=False
         )
@@ -1367,8 +1386,6 @@ async def giverole(ctx, role_name: str = None):
         return
     
     # Senior mod (1504502978374139977) может выдавать максимум support (1508782838600830996)
-    # Mod (1504503217382232166) может выдавать максимум support
-    # Support (1508782838600830996) может выдавать только ниже себя
     author_roles = [r.id for r in ctx.author.roles]
     max_role_id = None
     
@@ -1379,10 +1396,8 @@ async def giverole(ctx, role_name: str = None):
     elif 1504503217382232166 in author_roles:  # mod
         max_role_id = 1508782838600830996  # support
     elif 1508782838600830996 in author_roles:  # support
-        # support может выдавать только роли ниже себя
         max_role_id = 1504503460740202567  # helper - но helper удален, так что ничего
     
-    # Проверяем, может ли пользователь выдавать эту роль
     if max_role_id:
         max_role = ctx.guild.get_role(max_role_id)
         if max_role and role.position >= max_role.position:
@@ -1619,7 +1634,7 @@ async def moderatorsinfo(ctx):
 
 # 📌 Commands
 `.warn @user [reason]` - Warn a user (5 warns = auto ban)
-`.warn-remove @user #code` - Remove a warning
+`.warn-remove <code>` - Remove a warning by code (no ping needed)
 `.warns @user` - Show user's warnings
 `.ban @user [reason]` - Ban a user permanently
 `.unban user_id` - Unban a user
@@ -1731,7 +1746,7 @@ async def help_commands(ctx):
     embed1.add_field(name=".mute (@user) (duration) (reason)", value="Mute a user (1h, 2h, 1d, 2d, 1w, 2w)", inline=False)
     embed1.add_field(name=".unmute (@user)", value="Unmute a user", inline=False)
     embed1.add_field(name=".warn (@user) (reason)", value="Give a warning to a user", inline=False)
-    embed1.add_field(name=".warn-remove (@user) (code)", value="Remove a warning from user", inline=False)
+    embed1.add_field(name=".warn-remove (code)", value="Remove a warning by code (no ping needed)", inline=False)
     embed1.add_field(name=".warns (@user)", value="Show all warnings of a user", inline=False)
     embed1.add_field(name=".hardban (@user) (reason)", value="Hard ban a user (remove all channel access)", inline=False)
     embed1.add_field(name=".unhardban (user)", value="Remove hard ban from a user", inline=False)
